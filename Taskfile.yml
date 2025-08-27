@@ -1,0 +1,135 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  install:
+    desc: Install dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  run:
+    desc: Run the application
+    deps: [install, dashboard:build]
+    cmds:
+      - go run cmd/server/main.go
+
+  dev:
+    desc: Run the application with hot reload
+    deps: [install]
+    cmds:
+      - go install github.com/air-verse/air@latest
+      - air -c .air.toml
+
+  build:
+    desc: Build the application
+    deps: [install]
+    cmds:
+      - go build -o bin/anybase cmd/server/main.go
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v -cover ./...
+
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -v -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+      - echo "Coverage report generated at coverage.html"
+
+  lint:
+    desc: Run linter
+    cmds:
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - golangci-lint run
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+      - gofmt -s -w .
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/
+      - rm -f coverage.out coverage.html
+
+  docker:build:
+    desc: Build Docker image
+    cmds:
+      - docker build -t anybase:latest .
+
+  docker:run:
+    desc: Run Docker container
+    deps: [docker:build]
+    cmds:
+      - docker run -p 8080:8080 anybase:latest
+
+  db:migrate:up:
+    desc: Run database migrations up
+    cmds:
+      - echo "Migration up not yet implemented"
+
+  db:migrate:down:
+    desc: Run database migrations down
+    cmds:
+      - echo "Migration down not yet implemented"
+
+  generate:
+    desc: Generate code (mocks, etc.)
+    cmds:
+      - go generate ./...
+
+  swagger:
+    desc: Generate Swagger documentation
+    cmds:
+      - go install github.com/swaggo/swag/cmd/swag@latest
+      - ~/go/bin/swag init -g cmd/server/main.go
+
+  api:
+    desc: Open API documentation in browser
+    cmds:
+      - open http://localhost:8080/docs
+
+  dashboard:build:
+    desc: Build the React dashboard
+    dir: dashboard
+    cmds:
+      - pnpm install
+      - pnpm build
+
+  dashboard:dev:
+    desc: Run dashboard in development mode
+    dir: dashboard
+    cmds:
+      - pnpm dev
+
+  dashboard:
+    desc: Open dashboard in browser
+    cmds:
+      - open http://localhost:8080
+
+  cli:
+    desc: Build and run the CLI tool
+    cmds:
+      - go build -o bin/anybase-cli cmd/cli/main.go
+      - echo "CLI built at bin/anybase-cli"
+      - 'echo "Usage: ./bin/anybase-cli --help"'
+
+  cli-test:
+    desc: Run API test sequence with CLI
+    deps: [cli]
+    cmds:
+      - ./bin/anybase-cli test

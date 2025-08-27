@@ -1,0 +1,41 @@
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  mode: "development"
+  read_timeout: 15s
+  write_timeout: 15s
+  shutdown_timeout: 10s
+
+database:
+  # For local development, use MongoDB
+  # For production, replace with AWS DocumentDB connection string
+  uri: "mongodb://localhost:27017"
+  database: "anybase"
+  max_pool_size: 100
+  min_pool_size: 10
+  max_idle_time: 10m
+  heartbeat_interval: 10s
+  retry_writes: true
+  server_selection_timeout: 5s
+
+auth:
+  # IMPORTANT: Change this in production
+  jwt_secret: "your-secret-key-change-in-production"
+  jwt_expiration: 24h
+  refresh_token_expiration: 168h # 7 days
+  password_min_length: 8
+  bcrypt_cost: 10
+  max_login_attempts: 5
+  lockout_duration: 15m
+
+aws:
+  region: "us-east-1"
+  # Use IAM roles in production instead of explicit credentials
+  access_key_id: ""
+  secret_access_key: ""
+  session_token: ""
+
+logging:
+  level: "debug"
+  format: "console" # json for production
+  output_path: "stdout"
