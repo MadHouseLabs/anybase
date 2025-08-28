@@ -1,7 +1,7 @@
 import { getUserSettings, getSystemSettings } from "@/lib/api-server";
 import { getCurrentUser, getAuthToken } from "@/lib/auth-server";
 import { Settings } from "lucide-react";
-import { SettingsTabs } from "./settings-client";
+import { SettingsTabs } from "./settings-tabs";
 
 export default async function SettingsPage() {
   const [userSettingsData, systemSettingsData, currentUser, token] = await Promise.all([
