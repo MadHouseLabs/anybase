@@ -1,5 +1,7 @@
+"use client"
+
 import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -30,10 +32,12 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { SchemaEditor } from "@/components/schema-editor"
 import { validateDocument, type ValidationError } from "@/lib/schema-validator"
 
-export function CollectionDetailPage() {
-  const { collectionName } = useParams<{ collectionName: string }>()
-  const navigate = useNavigate()
+export default function CollectionDetailPage() {
+  const params = useParams()
+  const router = useRouter()
   const { toast } = useToast()
+  
+  const collectionName = params?.name as string
   
   const [collection, setCollection] = useState<any>(null)
   const [documents, setDocuments] = useState<any[]>([])
@@ -394,7 +398,7 @@ export function CollectionDetailPage() {
       <div className="container mx-auto py-6">
         <div className="text-center">
           <h2 className="text-2xl font-semibold">Collection not found</h2>
-          <Button onClick={() => navigate('/collections')} className="mt-4">
+          <Button onClick={() => router.push('/collections')} className="mt-4">
             Back to Collections
           </Button>
         </div>
@@ -412,7 +416,7 @@ export function CollectionDetailPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate('/collections')}
+                onClick={() => router.push('/collections')}
                 className="hover:bg-secondary"
               >
                 <ArrowLeft className="h-4 w-4" />

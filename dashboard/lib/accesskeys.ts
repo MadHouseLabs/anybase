@@ -1,6 +1,8 @@
 import axios from 'axios'
+import Cookies from 'js-cookie'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
+const API_URL = `${API_BASE_URL}/api/v1`
 
 interface AccessKey {
   id: string
@@ -22,62 +24,49 @@ interface CreateAccessKeyRequest {
   expires_in?: number // Hours until expiration
 }
 
+const getAuthHeaders = () => {
+  const token = Cookies.get('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 export const accessKeysApi = {
   async create(data: CreateAccessKeyRequest): Promise<AccessKey> {
-    const token = localStorage.getItem('token')
     const response = await axios.post(`${API_URL}/access-keys`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: getAuthHeaders()
     })
     return response.data
   },
 
   async list(): Promise<{ access_keys: AccessKey[] }> {
-    const token = localStorage.getItem('token')
     const response = await axios.get(`${API_URL}/access-keys`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: getAuthHeaders()
     })
     return response.data
   },
 
   async get(id: string): Promise<AccessKey> {
-    const token = localStorage.getItem('token')
     const response = await axios.get(`${API_URL}/access-keys/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: getAuthHeaders()
     })
     return response.data
   },
 
   async update(id: string, data: Partial<AccessKey>): Promise<void> {
-    const token = localStorage.getItem('token')
     await axios.put(`${API_URL}/access-keys/${id}`, data, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: getAuthHeaders()
     })
   },
 
   async regenerate(id: string): Promise<{ key: string; message: string }> {
-    const token = localStorage.getItem('token')
     const response = await axios.post(`${API_URL}/access-keys/${id}/regenerate`, {}, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: getAuthHeaders()
     })
     return response.data
   },
 
   async delete(id: string): Promise<void> {
-    const token = localStorage.getItem('token')
     await axios.delete(`${API_URL}/access-keys/${id}`, {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+      headers: getAuthHeaders()
     })
   }
 }

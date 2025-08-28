@@ -1,14 +1,17 @@
+"use client"
+
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { collectionsApi, usersApi } from "@/lib/api"
 import { Database, FileJson, Shield, Users, Activity, Server, TrendingUp, Eye, Home, ArrowRight, CheckCircle, AlertCircle, Zap, BookOpen, Key, BarChart3, Clock, Plus } from "lucide-react"
+import Cookies from "js-cookie"
 
-export function DashboardPage() {
-  const navigate = useNavigate()
+export default function DashboardPage() {
+  const router = useRouter()
   const [stats, setStats] = useState({
     collections: 0,
     documents: 0,
@@ -172,11 +175,11 @@ export function DashboardPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => navigate('/collections')}>
+          <Button variant="outline" onClick={() => router.push('/collections')}>
             <Database className="h-4 w-4 mr-2" />
             View Collections
           </Button>
-          <Button onClick={() => navigate('/collections')}>
+          <Button onClick={() => router.push('/collections')}>
             <Plus className="h-4 w-4 mr-2" />
             New Collection
           </Button>
@@ -186,7 +189,7 @@ export function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => (
-          <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate(stat.link || '#')}>
+          <Card key={index} className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push(stat.link || '#')}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">
                 {stat.title}
@@ -284,7 +287,7 @@ export function DashboardPage() {
           <CardContent>
             <div className="grid grid-cols-1 gap-2">
               <Button 
-                onClick={() => navigate('/collections')}
+                onClick={() => router.push('/collections')}
                 variant="outline"
                 className="justify-start h-auto py-3 hover:bg-blue-50 hover:border-blue-300"
               >
@@ -295,7 +298,7 @@ export function DashboardPage() {
                 </div>
               </Button>
               <Button 
-                onClick={() => navigate('/collections')}
+                onClick={() => router.push('/collections')}
                 variant="outline"
                 className="justify-start h-auto py-3 hover:bg-green-50 hover:border-green-300"
               >
@@ -306,7 +309,7 @@ export function DashboardPage() {
                 </div>
               </Button>
               <Button 
-                onClick={() => navigate('/access-keys')}
+                onClick={() => router.push('/access-keys')}
                 variant="outline"
                 className="justify-start h-auto py-3 hover:bg-purple-50 hover:border-purple-300"
               >
@@ -317,7 +320,7 @@ export function DashboardPage() {
                 </div>
               </Button>
               <Button 
-                onClick={() => navigate('/users')}
+                onClick={() => router.push('/users')}
                 variant="outline"
                 className="justify-start h-auto py-3 hover:bg-orange-50 hover:border-orange-300"
               >
@@ -396,7 +399,7 @@ export function DashboardPage() {
                 <p className="text-sm text-muted-foreground">
                   Define your data structure with collections. Set up schemas, indexes, and configure permissions.
                 </p>
-                <Button variant="link" className="px-0 mt-2" onClick={() => navigate('/collections')}>
+                <Button variant="link" className="px-0 mt-2" onClick={() => router.push('/collections')}>
                   Start creating
                   <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
@@ -417,7 +420,7 @@ export function DashboardPage() {
                 <p className="text-sm text-muted-foreground">
                   Insert and manage your data. Documents support versioning, soft-delete, and real-time validation.
                 </p>
-                <Button variant="link" className="px-0 mt-2" onClick={() => navigate('/collections')}>
+                <Button variant="link" className="px-0 mt-2" onClick={() => router.push('/collections')}>
                   Add documents
                   <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>
@@ -438,7 +441,7 @@ export function DashboardPage() {
                 <p className="text-sm text-muted-foreground">
                   Set up API keys and manage user permissions to secure your data with role-based access control.
                 </p>
-                <Button variant="link" className="px-0 mt-2" onClick={() => navigate('/access-keys')}>
+                <Button variant="link" className="px-0 mt-2" onClick={() => router.push('/access-keys')}>
                   Setup access
                   <ArrowRight className="h-3 w-3 ml-1" />
                 </Button>

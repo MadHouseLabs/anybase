@@ -1,66 +1,50 @@
-"use client";
-
-import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { 
-  Database, 
-  FileJson, 
-  Settings,
-  Home,
-  Eye,
-  Users,
-  Key,
-  BookOpen
-} from "lucide-react"
-import Link from "next/link";
-import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { SidebarNav } from "./sidebar-nav";
 
 interface SidebarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 export function Sidebar({ className }: SidebarProps) {
-  const pathname = usePathname()
-
   const mainRoutes = [
     {
       label: "Dashboard",
-      icon: Home,
+      iconName: "home",
       href: "/",
     },
     {
       label: "Collections",
-      icon: Database,
+      iconName: "database",
       href: "/collections",
     },
     {
       label: "Views",
-      icon: Eye,
+      iconName: "eye",
       href: "/views",
     },
     {
       label: "Users",
-      icon: Users,
+      iconName: "users",
       href: "/users",
     },
     {
       label: "Access Keys",
-      icon: Key,
+      iconName: "key",
       href: "/access-keys",
     },
-  ]
+  ];
 
   const bottomRoutes = [
     {
       label: "API Docs",
-      icon: BookOpen,
+      iconName: "book-open",
       href: "/api-docs",
     },
     {
       label: "Settings",
-      icon: Settings,
+      iconName: "settings",
       href: "/settings",
     },
-  ]
+  ];
 
   return (
     <div className={cn("pb-12 w-64 h-full", className)}>
@@ -75,44 +59,12 @@ export function Sidebar({ className }: SidebarProps) {
             </p>
           </div>
           <ScrollArea className="h-[calc(100vh-200px)]">
-            <div className="flex flex-col gap-1">
-              {mainRoutes.map((route) => (
-                <Link
-                  key={route.href}
-                  href={route.href}
-                  className="block"
-                >
-                  <Button
-                    variant={pathname === route.href ? "secondary" : "ghost"}
-                    className="w-full justify-start h-10 mb-1"
-                  >
-                    <route.icon className="mr-3 h-4 w-4" />
-                    {route.label}
-                  </Button>
-                </Link>
-              ))}
-              
-              <div className="my-4 border-t" />
-              
-              {bottomRoutes.map((route) => (
-                <Link
-                  key={route.href}
-                  href={route.href}
-                  className="block"
-                >
-                  <Button
-                    variant={pathname === route.href ? "secondary" : "ghost"}
-                    className="w-full justify-start h-10 mb-1"
-                  >
-                    <route.icon className="mr-3 h-4 w-4" />
-                    {route.label}
-                  </Button>
-                </Link>
-              ))}
-            </div>
+            <SidebarNav routes={mainRoutes} />
+            <div className="my-4 border-t" />
+            <SidebarNav routes={bottomRoutes} />
           </ScrollArea>
         </div>
       </div>
     </div>
-  )
+  );
 }
