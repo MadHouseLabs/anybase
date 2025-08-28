@@ -25,7 +25,7 @@ interface CreateAccessKeyRequest {
 export const accessKeysApi = {
   async create(data: CreateAccessKeyRequest): Promise<AccessKey> {
     const token = localStorage.getItem('token')
-    const response = await axios.post(`${API_URL}/admin/access-keys`, data, {
+    const response = await axios.post(`${API_URL}/access-keys`, data, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -35,7 +35,7 @@ export const accessKeysApi = {
 
   async list(): Promise<{ access_keys: AccessKey[] }> {
     const token = localStorage.getItem('token')
-    const response = await axios.get(`${API_URL}/admin/access-keys`, {
+    const response = await axios.get(`${API_URL}/access-keys`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -45,7 +45,7 @@ export const accessKeysApi = {
 
   async get(id: string): Promise<AccessKey> {
     const token = localStorage.getItem('token')
-    const response = await axios.get(`${API_URL}/admin/access-keys/${id}`, {
+    const response = await axios.get(`${API_URL}/access-keys/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -55,7 +55,7 @@ export const accessKeysApi = {
 
   async update(id: string, data: Partial<AccessKey>): Promise<void> {
     const token = localStorage.getItem('token')
-    await axios.put(`${API_URL}/admin/access-keys/${id}`, data, {
+    await axios.put(`${API_URL}/access-keys/${id}`, data, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -64,7 +64,7 @@ export const accessKeysApi = {
 
   async regenerate(id: string): Promise<{ key: string; message: string }> {
     const token = localStorage.getItem('token')
-    const response = await axios.post(`${API_URL}/admin/access-keys/${id}/regenerate`, {}, {
+    const response = await axios.post(`${API_URL}/access-keys/${id}/regenerate`, {}, {
       headers: {
         Authorization: `Bearer ${token}`
       }
@@ -74,7 +74,7 @@ export const accessKeysApi = {
 
   async delete(id: string): Promise<void> {
     const token = localStorage.getItem('token')
-    await axios.delete(`${API_URL}/admin/access-keys/${id}`, {
+    await axios.delete(`${API_URL}/access-keys/${id}`, {
       headers: {
         Authorization: `Bearer ${token}`
       }

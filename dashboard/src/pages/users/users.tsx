@@ -10,8 +10,9 @@ import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { usersApi } from "@/lib/api"
-import { Shield, Trash2, Edit, UserCheck, UserX, AlertCircle, Plus } from "lucide-react"
+import { Shield, Trash2, Edit, UserCheck, UserX, AlertCircle, Plus, Users, Mail, Clock, ShieldCheck, Activity, Search, Filter } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function UsersPage() {
   const { toast } = useToast()
@@ -20,6 +21,9 @@ export function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<any>(null)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [roleFilter, setRoleFilter] = useState("all")
+  const [statusFilter, setStatusFilter] = useState("all")
   const [newUser, setNewUser] = useState({
     first_name: "",
     last_name: "",
@@ -29,15 +33,18 @@ export function UsersPage() {
     active: true
   })
   
-  // Check if current user is admin
+  // Check if current user is admin or developer
   const currentUser = JSON.parse(localStorage.getItem("user") || "{}")
   const isAdmin = currentUser.role === "admin"
+  const isDeveloper = currentUser.role === "developer"
+  const canViewUsers = isAdmin || isDeveloper
+  const canEditUsers = isAdmin // Only admins can edit
 
   useEffect(() => {
-    if (isAdmin) {
+    if (canViewUsers) {
       loadData()
     }
-  }, [isAdmin])
+  }, [canViewUsers])
 
   const loadData = async () => {
     try {
@@ -140,13 +147,50 @@ export function UsersPage() {
     }
   }
 
-  if (!isAdmin) {
+  const getInitials = (user: any) => {
+    const firstName = user.first_name || ""
+    const lastName = user.last_name || ""
+    const email = user.email || ""
+    
+    if (firstName && lastName) {
+      return `${firstName[0]}${lastName[0]}`.toUpperCase()
+    } else if (firstName) {
+      return firstName.substring(0, 2).toUpperCase()
+    } else if (email) {
+      return email.substring(0, 2).toUpperCase()
+    }
+    return "U"
+  }
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = searchQuery === "" || 
+      user.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.last_name?.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    const matchesRole = roleFilter === "all" || user.role === roleFilter
+    const matchesStatus = statusFilter === "all" || 
+      (statusFilter === "active" && user.active) ||
+      (statusFilter === "inactive" && !user.active)
+    
+    return matchesSearch && matchesRole && matchesStatus
+  })
+
+  const stats = {
+    total: users.length,
+    admins: users.filter(u => u.role === "admin").length,
+    developers: users.filter(u => u.role === "developer").length,
+    active: users.filter(u => u.active).length,
+    inactive: users.filter(u => !u.active).length
+  }
+
+  if (!canViewUsers) {
     return (
       <div className="container mx-auto py-6">
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Only administrators can manage users.
+            You don't have permission to view users.
           </AlertDescription>
         </Alert>
       </div>
@@ -154,25 +198,129 @@ export function UsersPage() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Users</h1>
-        <p className="text-muted-foreground">Manage system users and their access</p>
+    <div className="container mx-auto py-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            <Users className="h-8 w-8" />
+            User Management
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            {canEditUsers ? "Manage system users and their access permissions" : "View system users (read-only access)"}
+          </p>
+        </div>
+        {canEditUsers && (
+          <Button onClick={() => setCreateDialogOpen(true)} size="lg">
+            <Plus className="h-5 w-5 mr-2" />
+            Add User
+          </Button>
+        )}
       </div>
 
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+            <p className="text-xs text-muted-foreground">Registered accounts</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Administrators</CardTitle>
+            <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.admins}</div>
+            <p className="text-xs text-muted-foreground">Full access users</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Developers</CardTitle>
+            <Shield className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.developers}</div>
+            <p className="text-xs text-muted-foreground">Standard users</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active</CardTitle>
+            <UserCheck className="h-4 w-4 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.active}</div>
+            <p className="text-xs text-muted-foreground">Can access system</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Inactive</CardTitle>
+            <UserX className="h-4 w-4 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.inactive}</div>
+            <p className="text-xs text-muted-foreground">Access disabled</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Users Table */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="space-y-4">
             <div>
-              <CardTitle>System Users</CardTitle>
+              <CardTitle className="text-xl">All Users</CardTitle>
               <CardDescription>
-                All registered users in the system
+                Complete list of registered users and their access levels
               </CardDescription>
             </div>
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add User
-            </Button>
+            
+            {/* Filters */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                  <Input
+                    placeholder="Search by name or email..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <Filter className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Roles</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="developer">Developer</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <Activity className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -184,62 +332,106 @@ export function UsersPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Last Login</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                {canEditUsers && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {users.map((user) => (
-                <TableRow key={user._id || user.id}>
-                  <TableCell className="font-medium">
-                    {user.first_name || user.last_name ? 
-                      `${user.first_name || ''} ${user.last_name || ''}`.trim() : 
-                      user.username || 'Unnamed User'
-                    }
-                  </TableCell>
-                  <TableCell>{user.email}</TableCell>
-                  <TableCell>
-                    <Badge variant={getRoleBadgeVariant(user.role)}>
-                      {user.role ? user.role.toUpperCase() : 'DEVELOPER'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={user.active ? "default" : "secondary"}>
-                      {user.active ? <UserCheck className="h-3 w-3 mr-1" /> : <UserX className="h-3 w-3 mr-1" />}
-                      {user.active ? "Active" : "Inactive"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {user.last_login ? 
-                      new Date(user.last_login).toLocaleDateString() : 
-                      "Never"
-                    }
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedUser(user)
-                          setEditDialogOpen(true)
-                        }}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDeleteUser(user._id || user.id, user.email)}
-                        disabled={user.email === currentUser.email}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+              {filteredUsers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={canEditUsers ? 6 : 5} className="text-center py-8 text-muted-foreground">
+                    {searchQuery || roleFilter !== "all" || statusFilter !== "all" 
+                      ? "No users found matching your filters" 
+                      : "No users registered yet"}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredUsers.map((user) => (
+                  <TableRow key={user._id || user.id} className="hover:bg-muted/50">
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.email}`} />
+                          <AvatarFallback>{getInitials(user)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="font-medium">
+                            {user.first_name || user.last_name ? 
+                              `${user.first_name || ''} ${user.last_name || ''}`.trim() : 
+                              user.username || 'Unnamed User'
+                            }
+                          </div>
+                          <div className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Mail className="h-3 w-3" />
+                            {user.email}
+                          </div>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={getRoleBadgeVariant(user.role)} className="font-semibold">
+                        <Shield className="h-3 w-3 mr-1" />
+                        {user.role ? user.role.toUpperCase() : 'DEVELOPER'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={user.active ? "default" : "secondary"}
+                        className={user.active ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}
+                      >
+                        {user.active ? <UserCheck className="h-3 w-3 mr-1" /> : <UserX className="h-3 w-3 mr-1" />}
+                        {user.active ? "Active" : "Inactive"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-sm">
+                        <Clock className="h-3 w-3 text-muted-foreground" />
+                        {user.last_login ? 
+                          new Date(user.last_login).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          }) : 
+                          "Never"
+                        }
+                      </div>
+                    </TableCell>
+                  {canEditUsers && (
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedUser(user)
+                            setEditDialogOpen(true)
+                          }}
+                          className="hover:bg-blue-50"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteUser(user._id || user.id, user.email)}
+                          disabled={user.email === currentUser.email}
+                          className="hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
+          {filteredUsers.length > 0 && (
+            <div className="px-6 py-4 border-t text-sm text-muted-foreground">
+              Showing {filteredUsers.length} of {users.length} users
+            </div>
+          )}
         </CardContent>
       </Card>
 

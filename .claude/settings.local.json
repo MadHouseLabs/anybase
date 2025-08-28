@@ -3,7 +3,12 @@
     "allow": [
       "Bash(pnpm remove:*)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm dlx:*)"
+      "Bash(pnpm dlx:*)",
+      "mcp__browser__browser_type",
+      "mcp__browser__browser_click",
+      "mcp__browser__browser_get_console_logs",
+      "mcp__browser__browser_press_key",
+      "Bash(go run:*)"
     ],
     "deny": [],
     "ask": []

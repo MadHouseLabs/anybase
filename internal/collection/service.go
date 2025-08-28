@@ -54,9 +54,10 @@ type Service interface {
 }
 
 type QueryOptions struct {
-	Limit int
-	Skip  int
-	Sort  bson.M
+	Limit       int
+	Skip        int
+	Sort        bson.M
+	ExtraFilter bson.M // Additional runtime filters to combine with view filter
 }
 
 type service struct {
@@ -76,14 +77,23 @@ func NewService(db *database.Database, rbacService governance.RBACService) Servi
 // Collection Management
 
 func (s *service) CreateCollection(ctx context.Context, userID primitive.ObjectID, collection *models.Collection) error {
-	// Check if user has permission to create collections
-	hasPermission, err := s.rbacService.HasPermission(ctx, userID, "collections", "create")
+	// Get user role
+	userRole, err := s.rbacService.GetUserRole(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to check permissions: %w", err)
+		return fmt.Errorf("failed to get user role: %w", err)
 	}
-	if !hasPermission {
-		s.logAccess(ctx, userID, collection.Name, nil, "create", "denied", "insufficient permissions")
-		return fmt.Errorf("insufficient permissions to create collection")
+
+	// Admins and developers can create collections
+	if userRole != "admin" && userRole != "developer" {
+		// For other users, check if they have permission to create collections
+		hasPermission, err := s.rbacService.HasPermission(ctx, userID, "collections", "create")
+		if err != nil {
+			return fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, userID, collection.Name, nil, "create", "denied", "insufficient permissions")
+			return fmt.Errorf("insufficient permissions to create collection")
+		}
 	}
 
 	// Set metadata
@@ -147,15 +157,24 @@ func (s *service) UpdateCollection(ctx context.Context, userID primitive.ObjectI
 		return err
 	}
 
-	// Check if user can manage this collection
-	if collection.CreatedBy != userID {
-		hasPermission, err := s.rbacService.HasPermission(ctx, userID, "collections", "update")
-		if err != nil {
-			return err
-		}
-		if !hasPermission {
-			s.logAccess(ctx, userID, name, nil, "update", "denied", "insufficient permissions")
-			return fmt.Errorf("insufficient permissions to update collection")
+	// Get user role to check if admin or developer
+	userRole, err := s.rbacService.GetUserRole(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user role: %w", err)
+	}
+
+	// Admins and developers can update any collection
+	if userRole != "admin" && userRole != "developer" {
+		// For other users, check if they created it or have permission
+		if collection.CreatedBy != userID {
+			hasPermission, err := s.rbacService.HasPermission(ctx, userID, "collections", "update")
+			if err != nil {
+				return err
+			}
+			if !hasPermission {
+				s.logAccess(ctx, userID, name, nil, "update", "denied", "insufficient permissions")
+				return fmt.Errorf("insufficient permissions to update collection")
+			}
 		}
 	}
 
@@ -179,15 +198,24 @@ func (s *service) DeleteCollection(ctx context.Context, userID primitive.ObjectI
 		return err
 	}
 
-	// Check if user can delete this collection
-	if collection.CreatedBy != userID {
-		hasPermission, err := s.rbacService.HasPermission(ctx, userID, "collections", "delete")
-		if err != nil {
-			return err
-		}
-		if !hasPermission {
-			s.logAccess(ctx, userID, name, nil, "delete", "denied", "insufficient permissions")
-			return fmt.Errorf("insufficient permissions to delete collection")
+	// Get user role to check if admin or developer
+	userRole, err := s.rbacService.GetUserRole(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user role: %w", err)
+	}
+
+	// Admins and developers can delete any collection
+	if userRole != "admin" && userRole != "developer" {
+		// For other users, check if they created it or have permission
+		if collection.CreatedBy != userID {
+			hasPermission, err := s.rbacService.HasPermission(ctx, userID, "collections", "delete")
+			if err != nil {
+				return err
+			}
+			if !hasPermission {
+				s.logAccess(ctx, userID, name, nil, "delete", "denied", "insufficient permissions")
+				return fmt.Errorf("insufficient permissions to delete collection")
+			}
 		}
 	}
 
@@ -212,7 +240,31 @@ func (s *service) ListCollections(ctx context.Context, userID primitive.ObjectID
 		return nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
 
-	// Build filter to get collections user can access
+	// Admins and developers can see all collections without restrictions
+	if userRole == "admin" || userRole == "developer" {
+		cursor, err := s.db.Collection("collections").Find(ctx, bson.M{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list collections: %w", err)
+		}
+		defer cursor.Close(ctx)
+
+		var collections []*models.Collection
+		if err := cursor.All(ctx, &collections); err != nil {
+			return nil, fmt.Errorf("failed to decode collections: %w", err)
+		}
+
+		// Add document counts for each collection
+		for _, col := range collections {
+			count, err := s.db.GetDatabase().Collection("data_" + col.Name).CountDocuments(ctx, bson.M{})
+			if err == nil {
+				col.DocumentCount = count
+			}
+		}
+
+		return collections, nil
+	}
+
+	// For other users, filter based on permissions
 	filter := bson.M{
 		"$or": []bson.M{
 			{"created_by": userID},
@@ -231,6 +283,14 @@ func (s *service) ListCollections(ctx context.Context, userID primitive.ObjectID
 	var collections []*models.Collection
 	if err := cursor.All(ctx, &collections); err != nil {
 		return nil, fmt.Errorf("failed to decode collections: %w", err)
+	}
+
+	// Add document counts for each collection
+	for _, col := range collections {
+		count, err := s.db.GetDatabase().Collection("data_" + col.Name).CountDocuments(ctx, bson.M{})
+		if err == nil {
+			col.DocumentCount = count
+		}
 	}
 
 	return collections, nil
@@ -290,6 +350,11 @@ func (s *service) GetView(ctx context.Context, userID primitive.ObjectID, name s
 			return nil, fmt.Errorf("view not found")
 		}
 		return nil, fmt.Errorf("failed to get view: %w", err)
+	}
+
+	// Skip access check for access keys (already validated in handler)
+	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+		return &view, nil
 	}
 
 	// Check if user can access this view
@@ -389,40 +454,43 @@ func (s *service) QueryView(ctx context.Context, userID primitive.ObjectID, view
 	}
 
 	// Build aggregation pipeline
-	pipeline := view.Pipeline
-	if pipeline == nil {
-		pipeline = []bson.M{}
+	pipeline := []bson.M{}
+
+	// Step 1: Apply view's base filter first
+	if view.Filter != nil && len(view.Filter) > 0 {
+		pipeline = append(pipeline, bson.M{"$match": view.Filter})
 	}
 
-	// Add filter if specified in view
-	if view.Filter != nil {
-		pipeline = append([]bson.M{{"$match": view.Filter}}, pipeline...)
-	}
-
-	// Add field projection if specified
+	// Step 2: Apply field projection if specified
 	if len(view.Fields) > 0 {
 		projection := bson.M{}
 		for _, field := range view.Fields {
 			projection[field] = 1
 		}
+		// Always include _id for consistency
+		projection["_id"] = 1
 		pipeline = append(pipeline, bson.M{"$project": projection})
 	}
 
-	// Add sort if specified
-	if view.Sort != nil || opts.Sort != nil {
-		sort := view.Sort
-		if opts.Sort != nil {
-			sort = opts.Sort
-		}
-		pipeline = append(pipeline, bson.M{"$sort": sort})
+	// Step 3: Apply extra runtime filters on top of the projected results
+	if opts.ExtraFilter != nil && len(opts.ExtraFilter) > 0 {
+		pipeline = append(pipeline, bson.M{"$match": opts.ExtraFilter})
 	}
 
-	// Add pagination
+	// Step 4: Apply runtime sort if specified
+	if opts.Sort != nil && len(opts.Sort) > 0 {
+		pipeline = append(pipeline, bson.M{"$sort": opts.Sort})
+	}
+
+	// Step 5: Apply pagination
 	if opts.Skip > 0 {
 		pipeline = append(pipeline, bson.M{"$skip": opts.Skip})
 	}
 	if opts.Limit > 0 {
 		pipeline = append(pipeline, bson.M{"$limit": opts.Limit})
+	} else {
+		// Default limit to prevent returning too many records
+		pipeline = append(pipeline, bson.M{"$limit": 100})
 	}
 
 	// Execute aggregation
@@ -1075,6 +1143,13 @@ func (s *service) DeleteIndex(ctx context.Context, collectionName string, indexN
 // Helper Methods
 
 func (s *service) canAccessCollection(ctx context.Context, userID primitive.ObjectID, collection *models.Collection, operation string) (bool, error) {
+	// Get user role
+	userRole, err := s.rbacService.GetUserRole(ctx, userID)
+	if err == nil && (userRole == "admin" || userRole == "developer") {
+		// Admins and developers have full access to all collections
+		return true, nil
+	}
+
 	// Creator always has full access
 	if collection.CreatedBy == userID {
 		return true, nil
@@ -1108,7 +1183,7 @@ func (s *service) canAccessCollection(ctx context.Context, userID primitive.Obje
 	}
 
 	// Check role-based access
-	userRole, err := s.rbacService.GetUserRole(ctx, userID)
+	userRole, err = s.rbacService.GetUserRole(ctx, userID)
 	if err != nil {
 		return false, err
 	}

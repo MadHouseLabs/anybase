@@ -8,6 +8,7 @@ import { AccessKeysPage } from '@/pages/accesskeys/accesskeys'
 import { ViewsPage } from '@/pages/views/views'
 import { UsersPage } from '@/pages/users/users'
 import { SettingsPage } from '@/pages/settings/settings'
+import { ApiDocsPage } from '@/pages/docs/api-docs'
 import { Toaster } from '@/components/ui/toaster'
 import './index.css'
 
@@ -37,6 +38,7 @@ function App() {
           <Route path="views" element={<ViewsPage />} />
           <Route path="users" element={<UsersPage />} />
           <Route path="access-keys" element={<AccessKeysPage />} />
+          <Route path="api-docs" element={<ApiDocsPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Route>

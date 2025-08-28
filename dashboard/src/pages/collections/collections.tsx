@@ -47,12 +47,6 @@ export function CollectionsPage() {
       await collectionsApi.create({
         name: newCollection.name,
         description: newCollection.description,
-        permissions: {
-          read: { public: false, roles: ["admin", "user"] },
-          write: { public: false, roles: ["admin"] },
-          update: { public: false, roles: ["admin"] },
-          delete: { public: false, roles: ["admin"] },
-        },
         settings: {
           versioning: true,
           soft_delete: true,

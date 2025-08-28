@@ -9,17 +9,18 @@ import (
 
 // Collection represents a data collection in the system
 type Collection struct {
-	ID          primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
-	Name        string                 `bson:"name" json:"name" validate:"required,min=3,max=100"`
-	Description string                 `bson:"description,omitempty" json:"description,omitempty"`
-	Schema      *CollectionSchema      `bson:"schema,omitempty" json:"schema,omitempty"`
-	Indexes     []CollectionIndex      `bson:"indexes,omitempty" json:"indexes,omitempty"`
-	Permissions CollectionPermissions  `bson:"permissions" json:"permissions"`
-	Settings    CollectionSettings     `bson:"settings" json:"settings"`
-	Metadata    map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`
-	CreatedBy   primitive.ObjectID     `bson:"created_by" json:"created_by"`
-	CreatedAt   time.Time              `bson:"created_at" json:"created_at"`
-	UpdatedAt   time.Time              `bson:"updated_at" json:"updated_at"`
+	ID            primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
+	Name          string                 `bson:"name" json:"name" validate:"required,min=3,max=100"`
+	Description   string                 `bson:"description,omitempty" json:"description,omitempty"`
+	Schema        *CollectionSchema      `bson:"schema,omitempty" json:"schema,omitempty"`
+	Indexes       []CollectionIndex      `bson:"indexes,omitempty" json:"indexes,omitempty"`
+	Permissions   CollectionPermissions  `bson:"permissions" json:"permissions"`
+	Settings      CollectionSettings     `bson:"settings" json:"settings"`
+	Metadata      map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`
+	CreatedBy     primitive.ObjectID     `bson:"created_by" json:"created_by"`
+	CreatedAt     time.Time              `bson:"created_at" json:"created_at"`
+	UpdatedAt     time.Time              `bson:"updated_at" json:"updated_at"`
+	DocumentCount int64                  `bson:"-" json:"document_count,omitempty"` // Not stored in DB, calculated at runtime
 }
 
 // CollectionSchema defines the structure and validation rules using OpenAPI 3.0 format
@@ -95,9 +96,8 @@ type View struct {
 	Description string                 `bson:"description,omitempty" json:"description,omitempty"`
 	Collection  string                 `bson:"collection" json:"collection"`
 	Pipeline    []bson.M               `bson:"pipeline" json:"pipeline"`           // MongoDB aggregation pipeline
-	Fields      []string               `bson:"fields,omitempty" json:"fields"`     // Projected fields
-	Filter      bson.M                 `bson:"filter,omitempty" json:"filter"`     // Query filter
-	Sort        bson.M                 `bson:"sort,omitempty" json:"sort"`         // Sort order
+	Fields      []string               `bson:"fields,omitempty" json:"fields"`     // Projected fields (projection)
+	Filter      bson.M                 `bson:"filter,omitempty" json:"filter"`     // Base query filter
 	Permissions ViewPermissions        `bson:"permissions" json:"permissions"`
 	Metadata    map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`
 	CreatedBy   primitive.ObjectID     `bson:"created_by" json:"created_by"`

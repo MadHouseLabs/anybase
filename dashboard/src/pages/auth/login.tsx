@@ -24,13 +24,13 @@ export function LoginPage() {
       const response = await authApi.login(email, password)
       localStorage.setItem("token", response.access_token)
       // Store user with roles array
-      const user = response.user || { email, roles: [] }
-      // Check if user has admin role
-      const isAdmin = user.roles?.includes("admin") || false
+      const user = response.user || { email, role: "user" }
+      // Check if user has admin role - API returns role (singular), not roles (plural)
+      const isAdmin = user.role === "admin"
       localStorage.setItem("user", JSON.stringify({ 
         email: user.email || email, 
-        roles: user.roles || [],
-        role: isAdmin ? "admin" : (user.roles?.[0] || "user")
+        roles: [user.role || "user"],
+        role: user.role || "user"
       }))
       // Force reload to update authentication state
       window.location.href = "/"

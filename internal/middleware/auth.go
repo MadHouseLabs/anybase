@@ -58,6 +58,7 @@ func (m *AuthMiddleware) RequireAuth() gin.HandlerFunc {
 		}
 
 		// Set user context
+		c.Set("user", claims) // Set the full claims object for handlers that expect it
 		c.Set("userID", claims.UserID)
 		c.Set("user_id", claims.UserID) // For consistency with existing code
 		c.Set("email", claims.Email)

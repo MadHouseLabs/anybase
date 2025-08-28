@@ -149,7 +149,17 @@ func (h *CollectionHandler) ListCollections(c *gin.Context) {
 
 // CreateView creates a new view
 func (h *CollectionHandler) CreateView(c *gin.Context) {
+	// Access keys cannot create views
+	if authType, _ := c.Get("auth_type"); authType == "access_key" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access keys cannot create views"})
+		return
+	}
+	
 	userID := getUserID(c)
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	var view models.View
 	if err := c.ShouldBindJSON(&view); err != nil {
@@ -167,7 +177,18 @@ func (h *CollectionHandler) CreateView(c *gin.Context) {
 
 // GetView retrieves a view by name
 func (h *CollectionHandler) GetView(c *gin.Context) {
+	// Access keys cannot read view definitions
+	if authType, _ := c.Get("auth_type"); authType == "access_key" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access keys cannot read view definitions"})
+		return
+	}
+	
 	userID := getUserID(c)
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	
 	name := c.Param("name")
 
 	view, err := h.collectionService.GetView(c.Request.Context(), userID, name)
@@ -181,17 +202,119 @@ func (h *CollectionHandler) GetView(c *gin.Context) {
 
 // QueryView executes a view query
 func (h *CollectionHandler) QueryView(c *gin.Context) {
-	userID := getUserID(c)
 	name := c.Param("name")
+
+	// Check if authenticated via access key
+	authType, _ := c.Get("auth_type")
+	if authType == "access_key" {
+		// For access keys, check specific view execute permission
+		permissions, _ := c.Get("permissions")
+		perms := permissions.([]string)
+		
+		// Check for specific view execute permission or wildcard
+		hasPermission := false
+		requiredPerm := "view:" + name + ":execute"
+		for _, perm := range perms {
+			if perm == requiredPerm || perm == "view:*:execute" || perm == "*:*:*" {
+				hasPermission = true
+				break
+			}
+		}
+		
+		if !hasPermission {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Access denied: missing permission " + requiredPerm})
+			return
+		}
+		
+		// Parse query options
+		opts := collection.QueryOptions{}
+		
+		// Parse pagination
+		if limit := c.Query("limit"); limit != "" {
+			if l, err := strconv.Atoi(limit); err == nil {
+				opts.Limit = l
+			}
+		}
+		if skip := c.Query("skip"); skip != "" {
+			if s, err := strconv.Atoi(skip); err == nil {
+				opts.Skip = s
+			}
+		}
+		
+		// Parse sort parameter (JSON)
+		if sort := c.Query("sort"); sort != "" {
+			var sortMap bson.M
+			if err := json.Unmarshal([]byte(sort), &sortMap); err == nil {
+				opts.Sort = sortMap
+			}
+		}
+		
+		// Parse extra filters (JSON)
+		if filter := c.Query("filter"); filter != "" {
+			var filterMap bson.M
+			if err := json.Unmarshal([]byte(filter), &filterMap); err == nil {
+				opts.ExtraFilter = filterMap
+			}
+		}
+		
+		// Use special context to bypass user checks for access keys
+		ctx := context.WithValue(c.Request.Context(), "access_key_validated", true)
+		
+		// Execute view with NilObjectID for access keys
+		results, err := h.collectionService.QueryView(ctx, primitive.NilObjectID, name, opts)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		
+		// Return paginated response
+		c.JSON(http.StatusOK, gin.H{
+			"data": results,
+			"pagination": gin.H{
+				"limit": opts.Limit,
+				"skip": opts.Skip,
+				"count": len(results),
+			},
+		})
+		return
+	}
+
+	// JWT auth - use userID
+	userID := getUserID(c)
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	// Parse query options
 	opts := collection.QueryOptions{}
+	
+	// Parse pagination
 	if limit := c.Query("limit"); limit != "" {
-		// Simple conversion - you might want to use strconv.Atoi
-		opts.Limit = 10 // Default limit
+		if l, err := strconv.Atoi(limit); err == nil {
+			opts.Limit = l
+		}
 	}
 	if skip := c.Query("skip"); skip != "" {
-		opts.Skip = 0 // Default skip
+		if s, err := strconv.Atoi(skip); err == nil {
+			opts.Skip = s
+		}
+	}
+	
+	// Parse sort parameter (JSON)
+	if sort := c.Query("sort"); sort != "" {
+		var sortMap bson.M
+		if err := json.Unmarshal([]byte(sort), &sortMap); err == nil {
+			opts.Sort = sortMap
+		}
+	}
+	
+	// Parse extra filters (JSON)
+	if filter := c.Query("filter"); filter != "" {
+		var filterMap bson.M
+		if err := json.Unmarshal([]byte(filter), &filterMap); err == nil {
+			opts.ExtraFilter = filterMap
+		}
 	}
 
 	results, err := h.collectionService.QueryView(c.Request.Context(), userID, name, opts)
@@ -205,7 +328,17 @@ func (h *CollectionHandler) QueryView(c *gin.Context) {
 
 // ListViews lists all accessible views
 func (h *CollectionHandler) ListViews(c *gin.Context) {
+	// Access keys cannot list views
+	if authType, _ := c.Get("auth_type"); authType == "access_key" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access keys cannot list views"})
+		return
+	}
+	
 	userID := getUserID(c)
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	views, err := h.collectionService.ListViews(c.Request.Context(), userID)
 	if err != nil {
@@ -214,6 +347,60 @@ func (h *CollectionHandler) ListViews(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"views": views})
+}
+
+// UpdateView updates a view
+func (h *CollectionHandler) UpdateView(c *gin.Context) {
+	// Access keys cannot update views
+	if authType, _ := c.Get("auth_type"); authType == "access_key" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access keys cannot update views"})
+		return
+	}
+	
+	userID := getUserID(c)
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	
+	name := c.Param("name")
+
+	var updates bson.M
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.collectionService.UpdateView(c.Request.Context(), userID, name, updates); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "view updated successfully"})
+}
+
+// DeleteView deletes a view
+func (h *CollectionHandler) DeleteView(c *gin.Context) {
+	// Access keys cannot delete views
+	if authType, _ := c.Get("auth_type"); authType == "access_key" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access keys cannot delete views"})
+		return
+	}
+	
+	userID := getUserID(c)
+	if userID == primitive.NilObjectID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+	
+	name := c.Param("name")
+
+	if err := h.collectionService.DeleteView(c.Request.Context(), userID, name); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "view deleted successfully"})
 }
 
 // InsertDocument inserts a new document into a collection

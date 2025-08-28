@@ -22,6 +22,7 @@ import (
 	"github.com/karthik/anybase/internal/database"
 	"github.com/karthik/anybase/internal/governance"
 	"github.com/karthik/anybase/internal/middleware"
+	"github.com/karthik/anybase/internal/settings"
 	"github.com/karthik/anybase/internal/user"
 )
 
@@ -78,6 +79,7 @@ func main() {
 	rbacService := governance.NewRBACService(db)
 	collectionService := collection.NewService(db, rbacService)
 	accessKeyRepo := accesskey.NewRepository(db)
+	settingsService := settings.NewService(db.GetDatabase())
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(&cfg.Auth, rbacService)
@@ -123,7 +125,7 @@ func main() {
 	})
 
 	// API routes
-	setupAPIRoutes(router, authService, authMiddleware, accessKeyMiddleware, rbacService, collectionService, userRepo, accessKeyRepo)
+	setupAPIRoutes(router, authService, authMiddleware, accessKeyMiddleware, rbacService, collectionService, userRepo, accessKeyRepo, settingsService)
 
 	// Start server
 	srv := &http.Server{
@@ -158,7 +160,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware *middleware.AuthMiddleware, accessKeyMiddleware *middleware.AccessKeyAuthMiddleware, rbacService governance.RBACService, collectionService collection.Service, userRepo user.Repository, accessKeyRepo accesskey.Repository) {
+func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware *middleware.AuthMiddleware, accessKeyMiddleware *middleware.AccessKeyAuthMiddleware, rbacService governance.RBACService, collectionService collection.Service, userRepo user.Repository, accessKeyRepo accesskey.Repository, settingsService settings.Service) {
 	// API v1 group
 	api := router.Group("/api/v1")
 
@@ -218,6 +220,8 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 		viewsGroup.GET("", collectionHandler.ListViews)
 		viewsGroup.GET("/:name", collectionHandler.GetView)
 		viewsGroup.GET("/:name/query", collectionHandler.QueryView)
+		viewsGroup.PUT("/:name", collectionHandler.UpdateView)
+		viewsGroup.DELETE("/:name", collectionHandler.DeleteView)
 	}
 
 	// Data endpoints (support both JWT and Access Key auth)
@@ -233,26 +237,52 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 	}
 
 
-	// Admin endpoints
-	adminGroup := api.Group("/admin")
-	adminGroup.Use(authMiddleware.RequireRole("admin"))
+	// Access key management (accessible by admin and developer)
+	accessKeyHandler := v1.NewAccessKeyHandler(accessKeyRepo)
+	accessKeysGroup := api.Group("/access-keys")
+	accessKeysGroup.Use(authMiddleware.RequireRole("admin", "developer"))
 	{
-		// User management
-		adminGroup.GET("/users", userHandler.ListUsers)
-		adminGroup.POST("/users", userHandler.CreateUser)
-		adminGroup.GET("/users/:id", userHandler.GetUser)
-		adminGroup.PUT("/users/:id", userHandler.UpdateUser)
-		adminGroup.DELETE("/users/:id", userHandler.DeleteUser)
-		
+		accessKeysGroup.POST("", accessKeyHandler.CreateAccessKey)
+		accessKeysGroup.GET("", accessKeyHandler.ListAccessKeys)
+		accessKeysGroup.GET("/:id", accessKeyHandler.GetAccessKey)
+		accessKeysGroup.PUT("/:id", accessKeyHandler.UpdateAccessKey)
+		accessKeysGroup.DELETE("/:id", accessKeyHandler.DeleteAccessKey)
+		accessKeysGroup.POST("/:id/regenerate", accessKeyHandler.RegenerateAccessKey)
+	}
 
-		// Access key management
-		accessKeyHandler := v1.NewAccessKeyHandler(accessKeyRepo)
-		adminGroup.POST("/access-keys", accessKeyHandler.CreateAccessKey)
-		adminGroup.GET("/access-keys", accessKeyHandler.ListAccessKeys)
-		adminGroup.GET("/access-keys/:id", accessKeyHandler.GetAccessKey)
-		adminGroup.PUT("/access-keys/:id", accessKeyHandler.UpdateAccessKey)
-		adminGroup.DELETE("/access-keys/:id", accessKeyHandler.DeleteAccessKey)
-		adminGroup.POST("/access-keys/:id/regenerate", accessKeyHandler.RegenerateAccessKey)
+	// User management endpoints
+	// Read operations - accessible by admin and developer
+	usersReadGroup := api.Group("/admin/users")
+	usersReadGroup.Use(authMiddleware.RequireRole("admin", "developer"))
+	{
+		usersReadGroup.GET("", userHandler.ListUsers)
+		usersReadGroup.GET("/:id", userHandler.GetUser)
+	}
+
+	// Write operations - admin only
+	usersWriteGroup := api.Group("/admin/users")
+	usersWriteGroup.Use(authMiddleware.RequireRole("admin"))
+	{
+		usersWriteGroup.POST("", userHandler.CreateUser)
+		usersWriteGroup.PUT("/:id", userHandler.UpdateUser)
+		usersWriteGroup.DELETE("/:id", userHandler.DeleteUser)
+	}
+
+	// Settings endpoints
+	settingsHandler := v1.NewSettingsHandler(settingsService)
+	settingsGroup := api.Group("/settings")
+	settingsGroup.Use(authMiddleware.RequireAuth())
+	{
+		settingsGroup.GET("/user", settingsHandler.GetUserSettings)
+		settingsGroup.PUT("/user", settingsHandler.UpdateUserSettings)
+		settingsGroup.GET("/system", settingsHandler.GetSystemSettings)
+	}
+	
+	// System settings update - admin only
+	settingsAdminGroup := api.Group("/settings")
+	settingsAdminGroup.Use(authMiddleware.RequireRole("admin"))
+	{
+		settingsAdminGroup.PUT("/system", settingsHandler.UpdateSystemSettings)
 	}
 }
 
