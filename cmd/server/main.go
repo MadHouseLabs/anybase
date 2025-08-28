@@ -99,9 +99,9 @@ func main() {
 	router.Use(middleware.CORS())
 	router.Use(rateLimiter.Limit())
 
-	// Serve static files from React dashboard
-	router.Static("/assets", "./web/dist/assets")
-	router.StaticFile("/", "./web/dist/index.html")
+	// TODO: Serve static files from React dashboard build
+	// router.Static("/assets", "./dashboard/dist/assets")
+	// router.StaticFile("/", "./dashboard/dist/index.html")
 	
 	// Swagger documentation
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
