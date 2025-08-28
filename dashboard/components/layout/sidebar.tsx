@@ -1,3 +1,5 @@
+"use client";
+
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -11,8 +13,6 @@ import {
   Key,
   BookOpen
 } from "lucide-react"
-"use client";
-
 import Link from "next/link";
 import { usePathname } from "next/navigation"
 
@@ -79,7 +79,7 @@ export function Sidebar({ className }: SidebarProps) {
               {mainRoutes.map((route) => (
                 <Link
                   key={route.href}
-                  to={route.href}
+                  href={route.href}
                   className="block"
                 >
                   <Button
@@ -97,7 +97,7 @@ export function Sidebar({ className }: SidebarProps) {
               {bottomRoutes.map((route) => (
                 <Link
                   key={route.href}
-                  to={route.href}
+                  href={route.href}
                   className="block"
                 >
                   <Button

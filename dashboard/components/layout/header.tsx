@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,8 +19,14 @@ import { useRouter } from "next/navigation";
 
 export function Header() {
   const router = useRouter();
-  const userCookie = Cookies.get('user');
-  const user = userCookie ? JSON.parse(userCookie) : {}
+  const [user, setUser] = useState<any>({});
+  
+  useEffect(() => {
+    const userCookie = Cookies.get('user');
+    if (userCookie) {
+      setUser(JSON.parse(userCookie));
+    }
+  }, []);
 
   return (
     <header className="border-b">
