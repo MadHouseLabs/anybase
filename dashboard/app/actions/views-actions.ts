@@ -147,7 +147,18 @@ export async function queryView(name: string, params?: QueryViewParams) {
     }
 
     const result = await response.json();
-    return { success: true, data: result };
+    
+    // Handle different response formats from the API
+    if (Array.isArray(result)) {
+      return { success: true, data: result, total: result.length };
+    } else if (result && typeof result === 'object') {
+      // Check for various possible field names
+      const data = result.data || result.results || result.documents || result.items || [];
+      const total = result.total || result.count || result.totalCount || data.length;
+      return { success: true, data, total };
+    }
+    
+    return { success: true, data: [], total: 0 };
   } catch (error) {
     console.error("Error querying view:", error);
     return { success: false, error: "Failed to query view" };

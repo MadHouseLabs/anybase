@@ -488,9 +488,22 @@ export default function CollectionDetailPage() {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem 
                         className="text-destructive"
-                        onClick={() => {
-                          if (confirm(`Are you sure you want to delete ${collectionName}?`)) {
-                            // Delete collection
+                        onClick={async () => {
+                          if (confirm(`Are you sure you want to delete ${collectionName}? This action cannot be undone and will permanently delete all documents in this collection.`)) {
+                            try {
+                              await collectionsApi.delete(collectionName!)
+                              toast({
+                                title: "Success",
+                                description: `Collection "${collectionName}" has been deleted successfully`,
+                              })
+                              router.push('/collections')
+                            } catch (error) {
+                              toast({
+                                title: "Error",
+                                description: "Failed to delete collection. Please try again.",
+                                variant: "destructive",
+                              })
+                            }
                           }
                         }}
                       >

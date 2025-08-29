@@ -14,7 +14,16 @@ import {
 
 export default async function CollectionsPage() {
   const data = await getCollections();
-  const collections = data?.collections || data || [];
+  
+  // Ensure collections is always an array
+  let collections = [];
+  if (Array.isArray(data)) {
+    collections = data;
+  } else if (data && typeof data === 'object' && Array.isArray(data.collections)) {
+    collections = data.collections;
+  } else if (data && typeof data === 'object' && Array.isArray(data.data)) {
+    collections = data.data;
+  }
 
   // Calculate statistics
   const totalCollections = collections.length;

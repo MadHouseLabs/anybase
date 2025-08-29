@@ -22,14 +22,14 @@ export function Sidebar({ className }: SidebarProps) {
       iconName: "eye",
       href: "/views",
     },
+    {
+      label: "Storage",
+      iconName: "hard-drive",
+      href: "/storage",
+    },
   ];
 
-  const apiRoutes = [
-    {
-      label: "APIs",
-      iconName: "globe",
-      href: "/apis",
-    },
+  const computeRoutes = [
     {
       label: "Functions",
       iconName: "code-2",
@@ -40,27 +40,6 @@ export function Sidebar({ className }: SidebarProps) {
       iconName: "inbox",
       href: "/event-store",
     },
-  ];
-
-  const resourceRoutes = [
-    {
-      label: "Repositories",
-      iconName: "git-branch",
-      href: "/repositories",
-    },
-    {
-      label: "Binaries",
-      iconName: "package",
-      href: "/binaries",
-    },
-    {
-      label: "Storage",
-      iconName: "hard-drive",
-      href: "/storage",
-    },
-  ];
-
-  const automationRoutes = [
     {
       label: "Cron",
       iconName: "clock",
@@ -132,33 +111,13 @@ export function Sidebar({ className }: SidebarProps) {
             </div>
           </div>
           
-          {/* API & Functions */}
+          {/* Compute & Processing */}
           <div className="mt-6">
             <h3 className="px-4 mb-2 text-xs font-medium text-muted-foreground/70">
-              API & FUNCTIONS
+              COMPUTE & PROCESSING
             </h3>
             <div className="px-2">
-              <SidebarNav routes={apiRoutes} />
-            </div>
-          </div>
-          
-          {/* Code Resources */}
-          <div className="mt-6">
-            <h3 className="px-4 mb-2 text-xs font-medium text-muted-foreground/70">
-              CODE RESOURCES
-            </h3>
-            <div className="px-2">
-              <SidebarNav routes={resourceRoutes} />
-            </div>
-          </div>
-          
-          {/* Automation */}
-          <div className="mt-6">
-            <h3 className="px-4 mb-2 text-xs font-medium text-muted-foreground/70">
-              AUTOMATION
-            </h3>
-            <div className="px-2">
-              <SidebarNav routes={automationRoutes} />
+              <SidebarNav routes={computeRoutes} />
             </div>
           </div>
           

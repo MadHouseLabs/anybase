@@ -137,3 +137,63 @@ export async function testStorageConfiguration(config: Record<string, any>) {
     return { success: false, error: "Failed to test storage configuration" };
   }
 }
+
+export async function updateUserSettings(data: any) {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/settings/user`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    const result = await response.json();
+    revalidatePath("/settings");
+    return { success: true, data: result };
+  } catch (error) {
+    console.error("Error updating user settings:", error);
+    return { success: false, error: "Failed to update user settings" };
+  }
+}
+
+export async function updateSystemSettings(data: any) {
+  try {
+    const token = await getAuthToken();
+    if (!token) {
+      return { success: false, error: "Not authenticated" };
+    }
+
+    const response = await fetch(`${API_BASE_URL}/api/v1/settings/system`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      return { success: false, error };
+    }
+
+    const result = await response.json();
+    revalidatePath("/settings");
+    return { success: true, data: result };
+  } catch (error) {
+    console.error("Error updating system settings:", error);
+    return { success: false, error: "Failed to update system settings" };
+  }
+}

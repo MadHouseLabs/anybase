@@ -17,9 +17,10 @@ interface AccessKey {
 interface AccessKeyCardDisplayProps {
   accessKey: AccessKey;
   children?: React.ReactNode;
+  hasStoredKey?: boolean;
 }
 
-export function AccessKeyCardDisplay({ accessKey, children }: AccessKeyCardDisplayProps) {
+export function AccessKeyCardDisplay({ accessKey, children, hasStoredKey }: AccessKeyCardDisplayProps) {
   return (
     <div className="border p-6 space-y-4 hover:bg-muted/50 transition-colors">
       <div className="flex items-start justify-between">

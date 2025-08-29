@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { createAccessKey, updateAccessKey, deleteAccessKey } from "@/app/actions/access-keys-actions";
 import { Plus, X, RefreshCw, Trash2, Lock, Unlock, Key, Copy, CheckCircle } from "lucide-react";
 import { accessKeysApi } from "@/lib/accesskeys";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface AccessKey {
   id: string;
@@ -51,6 +52,12 @@ export function CreateAccessKeyButton() {
         // Use client API to get the generated key
         const response = await accessKeysApi.create(formData);
         if (response.key) {
+          // Store the key locally
+          const storedKeys = localStorage.getItem("anybase_access_keys") || "{}";
+          const keys = JSON.parse(storedKeys);
+          keys[response.id] = response.key;
+          localStorage.setItem("anybase_access_keys", JSON.stringify(keys));
+          
           toast({
             title: "Success",
             description: (
@@ -216,7 +223,7 @@ export function ToggleAccessKeyButton({ accessKey }: { accessKey: AccessKey }) {
   const handleToggle = () => {
     startTransition(async () => {
       const result = await updateAccessKey(accessKey.id, { 
-        permissions: accessKey.permissions 
+        active: !accessKey.active 
       });
       
       if (result.success) {
@@ -251,20 +258,217 @@ export function ToggleAccessKeyButton({ accessKey }: { accessKey: AccessKey }) {
   );
 }
 
-export function RegenerateKeyButton({ accessKey }: { accessKey: AccessKey }) {
+export function ViewKeyButton({ accessKey }: { accessKey: AccessKey }) {
   const { toast } = useToast();
-  const [regeneratedKey, setRegeneratedKey] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [keyValue, setKeyValue] = useState<string>("");
+  const [inputMode, setInputMode] = useState(false);
+  const [inputValue, setInputValue] = useState("");
   const [copied, setCopied] = useState(false);
+
+  const handleOpen = () => {
+    // Check if we have the key stored locally (in localStorage)
+    const storedKeys = localStorage.getItem("anybase_access_keys");
+    if (storedKeys) {
+      const keys = JSON.parse(storedKeys);
+      if (keys[accessKey.id]) {
+        setKeyValue(keys[accessKey.id]);
+        setOpen(true);
+        setInputMode(false);
+      } else {
+        // No stored key, open in input mode
+        setOpen(true);
+        setInputMode(true);
+      }
+    } else {
+      // No stored keys at all, open in input mode
+      setOpen(true);
+      setInputMode(true);
+    }
+  };
+
+  const saveKey = () => {
+    if (inputValue.trim()) {
+      const storedKeys = localStorage.getItem("anybase_access_keys") || "{}";
+      const keys = JSON.parse(storedKeys);
+      keys[accessKey.id] = inputValue.trim();
+      localStorage.setItem("anybase_access_keys", JSON.stringify(keys));
+      
+      setKeyValue(inputValue.trim());
+      setInputMode(false);
+      setInputValue("");
+      
+      toast({
+        title: "Key Saved",
+        description: "Access key has been saved locally in your browser",
+      });
+    }
+  };
+
+  const copyToClipboard = () => {
+    if (keyValue) {
+      navigator.clipboard.writeText(keyValue);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: "Copied",
+        description: "Access key copied to clipboard",
+      });
+    }
+  };
+
+  const deleteStoredKey = () => {
+    if (confirm("Are you sure you want to remove this stored key from your browser?")) {
+      const storedKeys = localStorage.getItem("anybase_access_keys") || "{}";
+      const keys = JSON.parse(storedKeys);
+      delete keys[accessKey.id];
+      localStorage.setItem("anybase_access_keys", JSON.stringify(keys));
+      
+      setKeyValue("");
+      setInputMode(true);
+      
+      toast({
+        title: "Key Removed",
+        description: "The stored key has been removed from your browser",
+      });
+    }
+  };
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleOpen}
+        className="hover:bg-gray-50"
+        title="View/Save Access Key"
+      >
+        <Key className="h-4 w-4" />
+      </Button>
+
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogContent className="max-w-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Access Key: {accessKey.name}</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-4 mt-4">
+                <Alert>
+                  <Key className="h-4 w-4" />
+                  <AlertDescription>
+                    Access keys are stored locally in your browser for security. The server never stores the actual key values after generation.
+                  </AlertDescription>
+                </Alert>
+                
+                {inputMode ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Enter Access Key</Label>
+                      <p className="text-xs text-muted-foreground">
+                        If you have this access key saved elsewhere, you can enter it here to store it in your browser for future reference.
+                      </p>
+                      <Input
+                        type="text"
+                        placeholder="ak_..."
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        className="font-mono text-xs"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button onClick={saveKey} disabled={!inputValue.trim()}>
+                        Save Key
+                      </Button>
+                      <Button variant="outline" onClick={() => setOpen(false)}>
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm">Key Value</Label>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 p-3 bg-muted rounded text-xs font-mono break-all select-all">
+                          {keyValue}
+                        </code>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={copyToClipboard}
+                        >
+                          {copied ? (
+                            <>
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Copied
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="h-4 w-4 mr-2" />
+                              Copy
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInputMode(true)}
+                      >
+                        Update Key
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={deleteStoredKey}
+                        className="text-destructive hover:text-destructive"
+                      >
+                        Remove Stored Key
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {!inputMode && (
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={() => setOpen(false)}>Close</AlertDialogAction>
+            </AlertDialogFooter>
+          )}
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  );
+}
+
+export function RegenerateKeyButton({ accessKey, onRegenerate }: { accessKey: AccessKey; onRegenerate?: (key: string) => void }) {
+  const { toast } = useToast();
 
   const handleRegenerate = async () => {
     if (!confirm(`Are you sure you want to regenerate the key for ${accessKey.name}? The old key will stop working immediately.`)) return;
 
     try {
       const response = await accessKeysApi.regenerate(accessKey.id);
-      setRegeneratedKey(response.key);
+      
+      // Store the new key locally
+      const storedKeys = localStorage.getItem("anybase_access_keys") || "{}";
+      const keys = JSON.parse(storedKeys);
+      keys[accessKey.id] = response.key;
+      localStorage.setItem("anybase_access_keys", JSON.stringify(keys));
+      
+      // Dispatch custom event to update UI
+      window.dispatchEvent(new Event("anybase-keys-updated"));
+      
+      // Call parent callback with the new key
+      if (onRegenerate) {
+        onRegenerate(response.key);
+      }
+      
       toast({
         title: "Success",
-        description: `Access key ${accessKey.name} regenerated successfully`,
+        description: `Access key regenerated successfully`,
       });
     } catch (error) {
       toast({
@@ -275,65 +479,16 @@ export function RegenerateKeyButton({ accessKey }: { accessKey: AccessKey }) {
     }
   };
 
-  const copyToClipboard = () => {
-    if (regeneratedKey) {
-      navigator.clipboard.writeText(regeneratedKey);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: "Copied",
-        description: "Access key copied to clipboard",
-      });
-    }
-  };
-
   return (
-    <>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={handleRegenerate}
-        className="hover:bg-blue-50"
-      >
-        <RefreshCw className="h-4 w-4" />
-      </Button>
-      
-      {regeneratedKey && (
-        <Alert className="bg-muted/50 mt-4">
-          <Key className="h-4 w-4" />
-          <AlertDescription>
-            <div className="space-y-2">
-              <p className="font-medium">New Access Key Generated:</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 p-2 bg-background rounded text-sm font-mono break-all">
-                  {regeneratedKey}
-                </code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={copyToClipboard}
-                >
-                  {copied ? (
-                    <>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Save this key securely. You won't be able to see it again.
-              </p>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
-    </>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleRegenerate}
+      className="hover:bg-blue-50"
+      title="Regenerate Key"
+    >
+      <RefreshCw className="h-4 w-4" />
+    </Button>
   );
 }
 

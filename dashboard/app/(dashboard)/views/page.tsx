@@ -1,10 +1,19 @@
 import { getViews, getCollections } from "@/lib/api-server";
 import { getCurrentUser } from "@/lib/auth-server";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Eye, AlertCircle } from "lucide-react";
+import { Eye, AlertCircle, Database, Filter, SortAsc } from "lucide-react";
 import { CreateViewDialog } from "./view-client-components";
-import { ViewsListWithSearch } from "./views-list";
+import { ViewsTable } from "./views-table";
+import { Input } from "@/components/ui/input";
+import { Search } from "lucide-react";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export default async function ViewsPage() {
   const [viewsData, collectionsData, currentUser] = await Promise.all([
@@ -36,72 +45,122 @@ export default async function ViewsPage() {
   // Check if current user has access (admin or developer)
   const hasAccess = currentUser?.role === "admin" || currentUser?.role === "developer";
 
+  // Calculate statistics
+  const totalViews = views.length;
+  const collectionsWithViews = [...new Set(views.map((v: any) => v.collection))].length;
+  const viewsWithFilters = views.filter((v: any) => v.filter && Object.keys(v.filter).length > 0).length;
+  const viewsWithProjection = views.filter((v: any) => v.fields && v.fields.length > 0).length;
+
   if (!hasAccess) {
     return (
-      <div className="container mx-auto py-8 max-w-7xl">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Eye className="h-8 w-8" />
-              Views Management
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Create and manage saved queries for your collections
-            </p>
+      <div className="flex flex-col min-h-screen">
+        <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+          <div className="container mx-auto px-6 py-4 max-w-7xl">
+            <Breadcrumb className="mb-4">
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Views</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+            
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h1 className="text-2xl font-semibold">Views</h1>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Create and manage saved queries for your collections
+                </p>
+              </div>
+            </div>
           </div>
         </div>
-        <Alert>
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            Only administrators and developers can manage views.
-          </AlertDescription>
-        </Alert>
+        
+        <div className="container mx-auto px-6 py-6 max-w-7xl">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Only administrators and developers can manage views.
+            </AlertDescription>
+          </Alert>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 max-w-7xl">
+    <div className="flex flex-col min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Eye className="h-8 w-8" />
-            Views Management
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Create and manage saved queries for your collections
-          </p>
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-6 py-4 max-w-7xl">
+          {/* Breadcrumbs */}
+          <Breadcrumb className="mb-4">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>Views</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-semibold">Views</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Create and manage saved queries for your collections
+              </p>
+            </div>
+            <CreateViewDialog collections={collections} />
+          </div>
+
+          {/* Metrics */}
+          <div className="flex items-center gap-6 pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{totalViews}</span>
+              <span className="text-sm text-muted-foreground">Total Views</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{collectionsWithViews}</span>
+              <span className="text-sm text-muted-foreground">Collections</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{viewsWithFilters}</span>
+              <span className="text-sm text-muted-foreground">With Filters</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{viewsWithProjection}</span>
+              <span className="text-sm text-muted-foreground">With Projection</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Info Alert */}
-      <Alert className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
-        <Eye className="h-4 w-4 text-blue-600" />
-        <AlertDescription className="text-blue-900 dark:text-blue-100">
-          <strong>About Views:</strong> Views are saved queries that allow you to filter and project data from a collection. 
-          They provide a consistent way to access frequently used data subsets without writing the same queries repeatedly.
-        </AlertDescription>
-      </Alert>
-
-      {/* Main Content */}
-      <Card>
-        <CardHeader>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">Saved Views</CardTitle>
-                <CardDescription>
-                  Manage your collection views and saved queries
-                </CardDescription>
-              </div>
-              <CreateViewDialog collections={collections} />
-            </div>
-            
-            <ViewsListWithSearch views={views} collections={collections} />
+      {/* Content */}
+      <div className="container mx-auto px-6 py-6 max-w-7xl">
+        {/* Search */}
+        <div className="mb-6">
+          <div className="relative max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+            <Input 
+              placeholder="Search views..." 
+              className="pl-10"
+              disabled
+            />
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+
+        {/* Views Table */}
+        <ViewsTable views={views} collections={collections} />
+      </div>
     </div>
   );
 }

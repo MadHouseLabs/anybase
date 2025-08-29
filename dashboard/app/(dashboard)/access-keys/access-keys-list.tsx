@@ -1,12 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search, Filter, Key } from "lucide-react";
+import { Search, Filter, Key, CheckCircle, Copy } from "lucide-react";
 import { AccessKeyCardDisplay } from "./access-key-card-server";
-import { ToggleAccessKeyButton, RegenerateKeyButton, DeleteAccessKeyButton } from "./access-keys-client-components";
+import { ToggleAccessKeyButton, RegenerateKeyButton, DeleteAccessKeyButton, ViewKeyButton } from "./access-keys-client-components";
 import { AccessKeysEmptyState } from "./access-keys-list";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 interface AccessKey {
   id: string;
@@ -26,6 +30,36 @@ interface AccessKeysListWithSearchProps {
 export function AccessKeysListWithSearch({ accessKeys }: AccessKeysListWithSearchProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [storedKeyIds, setStoredKeyIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Check which keys are stored locally
+    const checkStoredKeys = () => {
+      const storedKeys = localStorage.getItem("anybase_access_keys");
+      if (storedKeys) {
+        const keys = JSON.parse(storedKeys);
+        setStoredKeyIds(new Set(Object.keys(keys)));
+      } else {
+        setStoredKeyIds(new Set());
+      }
+    };
+
+    checkStoredKeys();
+
+    // Listen for storage changes (including from ViewKeyButton)
+    const handleStorageChange = () => {
+      checkStoredKeys();
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    // Custom event for same-window updates
+    window.addEventListener("anybase-keys-updated", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("anybase-keys-updated", handleStorageChange);
+    };
+  }, []);
 
   const filteredKeys = accessKeys.filter(key => {
     const matchesSearch = searchQuery === "" || 
@@ -73,13 +107,7 @@ export function AccessKeysListWithSearch({ accessKeys }: AccessKeysListWithSearc
         ) : (
           <>
             {filteredKeys.map((key) => (
-              <div key={key.id}>
-                <AccessKeyCardDisplay accessKey={key}>
-                  <ToggleAccessKeyButton accessKey={key} />
-                  <RegenerateKeyButton accessKey={key} />
-                  <DeleteAccessKeyButton accessKey={key} />
-                </AccessKeyCardDisplay>
-              </div>
+              <AccessKeyCard key={key.id} accessKey={key} hasStoredKey={storedKeyIds.has(key.id)} />
             ))}
             {filteredKeys.length > 0 && (
               <div className="px-6 py-4 border-t text-sm text-muted-foreground">
@@ -90,6 +118,83 @@ export function AccessKeysListWithSearch({ accessKeys }: AccessKeysListWithSearc
         )}
       </div>
     </>
+  );
+}
+
+function AccessKeyCard({ accessKey, hasStoredKey }: { accessKey: AccessKey; hasStoredKey: boolean }) {
+  const [regeneratedKey, setRegeneratedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
+
+  const handleCopy = () => {
+    if (regeneratedKey) {
+      navigator.clipboard.writeText(regeneratedKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: "Copied",
+        description: "Access key copied to clipboard",
+      });
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        {hasStoredKey && (
+          <Badge 
+            className="absolute -top-2 -right-2 z-10 bg-green-100 text-green-800 border-green-200"
+            variant="outline"
+          >
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Key Saved
+          </Badge>
+        )}
+        <AccessKeyCardDisplay accessKey={accessKey}>
+          <ViewKeyButton accessKey={accessKey} />
+          <ToggleAccessKeyButton accessKey={accessKey} />
+          <RegenerateKeyButton accessKey={accessKey} onRegenerate={setRegeneratedKey} />
+          <DeleteAccessKeyButton accessKey={accessKey} />
+        </AccessKeyCardDisplay>
+      </div>
+      
+      {regeneratedKey && (
+        <Alert className="bg-green-50 border-green-200">
+          <Key className="h-4 w-4 text-green-600" />
+          <AlertDescription>
+            <div className="space-y-3">
+              <p className="font-medium text-green-800">New Access Key Generated:</p>
+              <div className="flex items-start gap-2">
+                <code className="flex-1 p-3 bg-white border border-green-200 rounded text-xs font-mono break-all select-all">
+                  {regeneratedKey}
+                </code>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopy}
+                  className="shrink-0"
+                >
+                  {copied ? (
+                    <>
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Copied
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy
+                    </>
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Save this key securely. You won't be able to see it again.
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
   );
 }
 

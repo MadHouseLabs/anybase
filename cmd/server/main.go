@@ -124,6 +124,10 @@ func main() {
 		})
 	})
 
+	// MCP endpoint
+	mcpHandler := v1.NewMCPHandler(collectionService)
+	router.POST("/mcp", accessKeyMiddleware.Authenticate(), authMiddleware.RequireAuth(), mcpHandler.HandleMCPRequest)
+
 	// API routes
 	setupAPIRoutes(router, authService, authMiddleware, accessKeyMiddleware, rbacService, collectionService, userRepo, accessKeyRepo, settingsService)
 

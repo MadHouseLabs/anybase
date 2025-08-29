@@ -137,14 +137,18 @@ func (s *service) GetCollection(ctx context.Context, userID primitive.ObjectID, 
 		return nil, fmt.Errorf("failed to get collection: %w", err)
 	}
 
-	// Check read permission
-	canRead, err := s.canAccessCollection(ctx, userID, &collection, "read")
-	if err != nil {
-		return nil, err
-	}
-	if !canRead {
-		s.logAccess(ctx, userID, name, nil, "read", "denied", "insufficient permissions")
-		return nil, fmt.Errorf("access denied")
+	// If userID is NilObjectID (access key auth), skip permission check
+	// Access control is handled by the access key permissions
+	if userID != primitive.NilObjectID {
+		// Check read permission
+		canRead, err := s.canAccessCollection(ctx, userID, &collection, "read")
+		if err != nil {
+			return nil, err
+		}
+		if !canRead {
+			s.logAccess(ctx, userID, name, nil, "read", "denied", "insufficient permissions")
+			return nil, fmt.Errorf("access denied")
+		}
 	}
 
 	return &collection, nil
@@ -234,6 +238,22 @@ func (s *service) DeleteCollection(ctx context.Context, userID primitive.ObjectI
 }
 
 func (s *service) ListCollections(ctx context.Context, userID primitive.ObjectID) ([]*models.Collection, error) {
+	// If userID is NilObjectID (access key auth), return all collections
+	// Access control is handled by the access key permissions
+	if userID == primitive.NilObjectID {
+		cursor, err := s.db.Collection("collections").Find(ctx, bson.M{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list collections: %w", err)
+		}
+		defer cursor.Close(ctx)
+		
+		var collections []*models.Collection
+		if err := cursor.All(ctx, &collections); err != nil {
+			return nil, fmt.Errorf("failed to decode collections: %w", err)
+		}
+		return collections, nil
+	}
+	
 	// Get user role
 	userRole, err := s.rbacService.GetUserRole(ctx, userID)
 	if err != nil {
@@ -352,14 +372,13 @@ func (s *service) GetView(ctx context.Context, userID primitive.ObjectID, name s
 		return nil, fmt.Errorf("failed to get view: %w", err)
 	}
 
-	// Skip access check for access keys (already validated in handler)
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
-		return &view, nil
-	}
-
-	// Check if user can access this view
-	if !s.canAccessView(ctx, userID, &view) {
-		return nil, fmt.Errorf("access denied")
+	// If userID is NilObjectID (access key auth), skip permission check
+	// Access control is handled by the access key permissions
+	if userID != primitive.NilObjectID {
+		// Check if user can access this view
+		if !s.canAccessView(ctx, userID, &view) {
+			return nil, fmt.Errorf("access denied")
+		}
 	}
 
 	return &view, nil
@@ -419,6 +438,22 @@ func (s *service) DeleteView(ctx context.Context, userID primitive.ObjectID, nam
 }
 
 func (s *service) ListViews(ctx context.Context, userID primitive.ObjectID) ([]*models.View, error) {
+	// If userID is NilObjectID (access key auth), return all views
+	// Access control is handled by the access key permissions
+	if userID == primitive.NilObjectID {
+		cursor, err := s.db.Collection("views").Find(ctx, bson.M{})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list views: %w", err)
+		}
+		defer cursor.Close(ctx)
+		
+		var views []*models.View
+		if err := cursor.All(ctx, &views); err != nil {
+			return nil, fmt.Errorf("failed to decode views: %w", err)
+		}
+		return views, nil
+	}
+	
 	userRole, err := s.rbacService.GetUserRole(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user role: %w", err)
@@ -511,9 +546,9 @@ func (s *service) QueryView(ctx context.Context, userID primitive.ObjectID, view
 // Data Operations
 
 func (s *service) InsertDocument(ctx context.Context, mutation *models.DataMutation) (*models.Document, error) {
-	// Check if access key has already been validated
+	// If userID is NilObjectID (access key auth), skip permission check
 	var collection *models.Collection
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+	if mutation.UserID == primitive.NilObjectID {
 		// Access key permissions already checked in handler, proceed
 		// Get collection metadata without permission check
 		var col models.Collection
@@ -575,9 +610,9 @@ func (s *service) InsertDocument(ctx context.Context, mutation *models.DataMutat
 }
 
 func (s *service) UpdateDocument(ctx context.Context, mutation *models.DataMutation) error {
-	// Check if access key has already been validated
+	// If userID is NilObjectID (access key auth), skip permission check
 	var collection *models.Collection
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+	if mutation.UserID == primitive.NilObjectID {
 		// Access key permissions already checked in handler, proceed
 		// Get collection metadata without permission check
 		var col models.Collection
@@ -757,10 +792,9 @@ func (s *service) UpdateDocument(ctx context.Context, mutation *models.DataMutat
 }
 
 func (s *service) DeleteDocument(ctx context.Context, mutation *models.DataMutation) error {
-	// Check if access key has already been validated
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
-		// Access key permissions already checked in handler, proceed
-	} else {
+	// If userID is NilObjectID (access key auth), skip permission check
+	// Access control is handled by the access key permissions
+	if mutation.UserID != primitive.NilObjectID {
 		// Regular user auth - check delete permission
 		canDelete, err := s.CanDelete(ctx, mutation.UserID, mutation.Collection)
 		if err != nil {
@@ -774,7 +808,7 @@ func (s *service) DeleteDocument(ctx context.Context, mutation *models.DataMutat
 
 	// Get collection settings
 	var collection *models.Collection
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+	if mutation.UserID == primitive.NilObjectID {
 		// For access keys, get collection without permission check
 		var col models.Collection
 		if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": mutation.Collection}).Decode(&col); err != nil {
@@ -840,10 +874,9 @@ func (s *service) DeleteDocument(ctx context.Context, mutation *models.DataMutat
 }
 
 func (s *service) QueryDocuments(ctx context.Context, query *models.DataQuery) ([]models.Document, error) {
-	// Check if access key has already been validated
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
-		// Access key permissions already checked in handler, proceed
-	} else {
+	// If userID is NilObjectID (access key auth), skip permission check
+	// Access control is handled by the access key permissions
+	if query.UserID != primitive.NilObjectID {
 		// Regular user auth - check read permission
 		canRead, err := s.CanRead(ctx, query.UserID, query.Collection)
 		if err != nil {
@@ -865,7 +898,7 @@ func (s *service) QueryDocuments(ctx context.Context, query *models.DataQuery) (
 
 	// Get collection metadata
 	var collection *models.Collection
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+	if query.UserID == primitive.NilObjectID {
 		// For access keys, get collection without permission check
 		var col models.Collection
 		if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": query.Collection}).Decode(&col); err != nil {
@@ -962,10 +995,9 @@ func (s *service) GetDocument(ctx context.Context, userID primitive.ObjectID, co
 }
 
 func (s *service) CountDocuments(ctx context.Context, userID primitive.ObjectID, collection string, filter map[string]interface{}) (int, error) {
-	// Check if access key has already been validated
-	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
-		// Access key permissions already checked in handler, proceed
-	} else if userID != primitive.NilObjectID {
+	// If userID is NilObjectID (access key auth), skip permission check
+	// Access control is handled by the access key permissions
+	if userID != primitive.NilObjectID {
 		// Regular user auth - check read permission
 		canRead, err := s.CanRead(ctx, userID, collection)
 		if err != nil {
