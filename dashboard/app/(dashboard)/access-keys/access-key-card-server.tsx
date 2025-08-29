@@ -21,11 +21,11 @@ interface AccessKeyCardDisplayProps {
 
 export function AccessKeyCardDisplay({ accessKey, children }: AccessKeyCardDisplayProps) {
   return (
-    <div className="border rounded-lg p-6 space-y-4 hover:bg-muted/50 transition-colors">
+    <div className="border p-6 space-y-4 hover:bg-muted/50 transition-colors">
       <div className="flex items-start justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
+            <div className="p-2 bg-primary/10">
               <Key className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1">

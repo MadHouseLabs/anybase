@@ -19,6 +19,14 @@ import {
   Key, Settings, Search, Copy, CheckCircle, Info, Code, 
   Calendar, Hash, MoreVertical, ExternalLink, Activity, Edit, FileCode
 } from "lucide-react"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { useToast } from "@/hooks/use-toast"
 import {
   DropdownMenu,
@@ -395,7 +403,7 @@ export default function CollectionDetailPage() {
 
   if (!collection) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="container mx-auto py-8 max-w-7xl">
         <div className="text-center">
           <h2 className="text-2xl font-semibold">Collection not found</h2>
           <Button onClick={() => router.push('/collections')} className="mt-4">
@@ -410,26 +418,33 @@ export default function CollectionDetailPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 max-w-7xl">
+          {/* Breadcrumbs */}
+          <Breadcrumb className="mb-4">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbLink href="/collections">Collections</BreadcrumbLink>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator />
+              <BreadcrumbItem>
+                <BreadcrumbPage>{collectionName}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+          
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => router.push('/collections')}
-                className="hover:bg-secondary"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              <div>
-                <div className="flex items-center gap-2">
-                  <Database className="h-5 w-5 text-muted-foreground" />
-                  <h1 className="text-2xl font-bold">{collectionName}</h1>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {collection.description || "No description provided"}
-                </p>
+            <div>
+              <div className="flex items-center gap-2">
+                <Database className="h-5 w-5 text-muted-foreground" />
+                <h1 className="text-2xl font-bold">{collectionName}</h1>
               </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {collection.description || "No description provided"}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               {editMode ? (
@@ -521,7 +536,7 @@ export default function CollectionDetailPage() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 container mx-auto px-6 py-6">
+      <div className="flex-1 container mx-auto px-6 py-6 max-w-7xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
           <TabsList className="grid w-full max-w-[500px] grid-cols-4">
             <TabsTrigger value="documents" className="flex items-center gap-2">
@@ -564,7 +579,7 @@ export default function CollectionDetailPage() {
               </div>
 
               {/* Documents Table */}
-              <Card>
+              <Card className="rounded-none shadow-none">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -591,7 +606,7 @@ export default function CollectionDetailPage() {
                         <TableRow key={doc.id || doc._id}>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <code className="text-xs bg-muted px-2 py-1 rounded">
+                              <code className="text-xs bg-muted px-2 py-1">
                                 {(doc.id || doc._id || "").substring(0, 12)}...
                               </code>
                               <Button
@@ -775,7 +790,7 @@ export default function CollectionDetailPage() {
               </div>
 
               {/* Indexes Table */}
-              <Card>
+              <Card className="rounded-none shadow-none">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -846,7 +861,7 @@ export default function CollectionDetailPage() {
               </Card>
 
               {/* Index Info Card */}
-              <Card className="bg-muted/50">
+              <Card className="bg-muted/50 rounded-none shadow-none">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-medium flex items-center gap-2">
                     <Info className="h-4 w-4" />
@@ -874,7 +889,7 @@ export default function CollectionDetailPage() {
                 </p>
               </div>
 
-              <Card>
+              <Card className="rounded-none shadow-none">
                 <CardContent className="pt-6 space-y-6">
                   {editMode ? (
                     <>

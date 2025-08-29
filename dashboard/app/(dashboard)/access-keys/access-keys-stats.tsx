@@ -13,7 +13,7 @@ interface AccessKeysStatsProps {
 export function AccessKeysStats({ stats }: AccessKeysStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Keys</CardTitle>
           <Hash className="h-4 w-4 text-muted-foreground" />
@@ -23,7 +23,7 @@ export function AccessKeysStats({ stats }: AccessKeysStatsProps) {
           <p className="text-xs text-muted-foreground">API access keys</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Active</CardTitle>
           <Unlock className="h-4 w-4 text-green-600" />
@@ -33,7 +33,7 @@ export function AccessKeysStats({ stats }: AccessKeysStatsProps) {
           <p className="text-xs text-muted-foreground">Currently enabled</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Inactive</CardTitle>
           <Lock className="h-4 w-4 text-orange-600" />
@@ -43,7 +43,7 @@ export function AccessKeysStats({ stats }: AccessKeysStatsProps) {
           <p className="text-xs text-muted-foreground">Temporarily disabled</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Expiring Soon</CardTitle>
           <Clock className="h-4 w-4 text-yellow-600" />

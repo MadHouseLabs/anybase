@@ -326,7 +326,7 @@ export function CollectionTabs({
 
       <TabsContent value="documents" className="space-y-4 mt-6">
         {/* Documents Toolbar */}
-        <Card>
+        <Card className="rounded-none shadow-none">
           <CardContent className="p-4">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-1 max-w-md">
@@ -359,7 +359,7 @@ export function CollectionTabs({
         </Card>
 
         {/* Documents Table */}
-        <Card>
+        <Card className="rounded-none shadow-none">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -379,7 +379,7 @@ export function CollectionTabs({
                 <TableRow>
                   <TableCell colSpan={7} className="h-32">
                     <div className="flex flex-col items-center justify-center">
-                      <div className="p-3 rounded-full bg-muted mb-3">
+                      <div className="p-3 bg-muted mb-3">
                         <FileJson className="h-8 w-8 text-muted-foreground" />
                       </div>
                       <p className="font-medium text-muted-foreground">
@@ -410,7 +410,7 @@ export function CollectionTabs({
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <code className="text-xs bg-muted px-2 py-1 rounded font-mono">
+                          <code className="text-xs bg-muted px-2 py-1 font-mono">
                             {docId.substring(0, 8)}...
                           </code>
                           <Button
@@ -537,7 +537,7 @@ export function CollectionTabs({
       </TabsContent>
 
       <TabsContent value="schema" className="space-y-4 mt-6">
-        <Card>
+        <Card className="rounded-none shadow-none">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -553,7 +553,7 @@ export function CollectionTabs({
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-lg bg-muted/50 p-4">
+            <div className="bg-muted/50 p-4">
               <pre className="text-sm overflow-x-auto">
                 <code>{JSON.stringify(collection.schema || { type: "object", properties: {} }, null, 2)}</code>
               </pre>
@@ -563,7 +563,7 @@ export function CollectionTabs({
       </TabsContent>
 
       <TabsContent value="indexes" className="space-y-4 mt-6">
-        <Card>
+        <Card className="rounded-none shadow-none">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -594,7 +594,7 @@ export function CollectionTabs({
                   <TableRow>
                     <TableCell colSpan={5} className="h-32 text-center">
                       <div className="flex flex-col items-center justify-center">
-                        <div className="p-3 rounded-full bg-muted mb-3">
+                        <div className="p-3 bg-muted mb-3">
                           <Key className="h-8 w-8 text-muted-foreground" />
                         </div>
                         <p className="font-medium text-muted-foreground">No indexes defined</p>
@@ -616,7 +616,7 @@ export function CollectionTabs({
                         </div>
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                        <code className="text-xs bg-muted px-2 py-1">
                           {Object.entries(index.key || {}).map(([field, direction]) => 
                             `${field}${direction === -1 ? ' ↓' : ' ↑'}`
                           ).join(", ")}
@@ -649,7 +649,7 @@ export function CollectionTabs({
         </Card>
 
         {/* Index Info */}
-        <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+        <Card className="bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900 rounded-none shadow-none">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Info className="h-4 w-4" />
@@ -681,7 +681,7 @@ export function CollectionTabs({
 
       <TabsContent value="settings" className="space-y-4 mt-6">
         <div className="grid gap-4">
-          <Card>
+          <Card className="rounded-none shadow-none">
             <CardHeader>
               <CardTitle>Collection Features</CardTitle>
               <CardDescription>
@@ -717,9 +717,9 @@ export function CollectionTabs({
               ].map((feature) => {
                 const IconComponent = feature.icon;
                 return (
-                  <div key={feature.name} className="flex items-center justify-between p-4 rounded-lg border">
+                  <div key={feature.name} className="flex items-center justify-between p-4 border">
                     <div className="flex items-start gap-3">
-                      <div className="p-2 rounded-lg bg-muted">
+                      <div className="p-2 bg-muted">
                         <IconComponent className="h-4 w-4" />
                       </div>
                       <div className="space-y-1">
@@ -738,7 +738,7 @@ export function CollectionTabs({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="rounded-none shadow-none">
             <CardHeader>
               <CardTitle>Collection Information</CardTitle>
               <CardDescription>

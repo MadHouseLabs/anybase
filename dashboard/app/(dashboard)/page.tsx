@@ -5,6 +5,14 @@ import { Database, FileJson, Shield, Users, Activity, Server, TrendingUp, Home, 
 import { getCollections, getUsers, getAccessKeys, getSystemHealth, getSystemSettings } from "@/lib/api-server";
 import Link from "next/link";
 import { ViewDocsButton } from "./dashboard-client-components";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export default async function DashboardPage() {
   // Fetch all data in parallel
@@ -140,102 +148,67 @@ export default async function DashboardPage() {
     storageTotal: storageLimit
   };
 
-  const statCards = [
-    {
-      title: "Collections",
-      value: stats.collections,
-      description: "Active database collections",
-      icon: Database,
-      color: "text-blue-600",
-      bgColor: "bg-blue-100",
-      link: "/collections"
-    },
-    {
-      title: "Documents",
-      value: stats.documents.toLocaleString(),
-      description: "Total documents stored",
-      icon: FileJson,
-      color: "text-green-600",
-      bgColor: "bg-green-100",
-      link: "/collections"
-    },
-    {
-      title: "Users",
-      value: stats.users,
-      description: "Registered users",
-      icon: Users,
-      color: "text-purple-600",
-      bgColor: "bg-purple-100",
-      link: "/users"
-    },
-    {
-      title: "API Keys",
-      value: stats.apiKeys,
-      description: "Active access keys",
-      icon: Key,
-      color: "text-orange-600",
-      bgColor: "bg-orange-100",
-      link: "/access-keys"
-    },
-  ];
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="flex flex-col min-h-screen">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Home className="h-8 w-8" />
-            Dashboard Overview
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Welcome back! Here's what's happening with your database today.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Link href="/collections">
-            <Button variant="outline">
-              <Database className="h-4 w-4 mr-2" />
-              View Collections
-            </Button>
-          </Link>
-          <Link href="/collections">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Collection
-            </Button>
-          </Link>
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-6 py-4 max-w-7xl">
+          {/* Breadcrumbs */}
+          <Breadcrumb className="mb-4">
+            <BreadcrumbList>
+              <BreadcrumbItem>
+                <BreadcrumbPage>Dashboard</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-semibold">Dashboard</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Welcome back! Here's what's happening with your database today.
+              </p>
+            </div>
+            <Link href="/collections">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Collection
+              </Button>
+            </Link>
+          </div>
+
+          {/* Metrics */}
+          <div className="flex items-center gap-6 pt-4 border-t">
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{stats.collections}</span>
+              <span className="text-sm text-muted-foreground">Collections</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{stats.documents.toLocaleString()}</span>
+              <span className="text-sm text-muted-foreground">Documents</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{stats.users}</span>
+              <span className="text-sm text-muted-foreground">Active Users</span>
+            </div>
+            <div className="h-4 w-px bg-border" />
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-semibold">{stats.apiKeys}</span>
+              <span className="text-sm text-muted-foreground">API Keys</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat, index) => (
-          <Link key={index} href={stat.link || '#'}>
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  {stat.title}
-                </CardTitle>
-                <div className={`p-2 rounded-lg ${stat.bgColor || 'bg-primary/10'}`}>
-                  <stat.icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <p className="text-xs text-muted-foreground">
-                  {stat.description}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
-
-      {/* Activity and Actions */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Content */}
+      <div className="container mx-auto px-6 py-6 max-w-7xl">
+        {/* Activity and Actions */}
+        <div className="grid gap-4 lg:grid-cols-3">
         {/* System Health Card */}
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1 border shadow-none rounded-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Activity className="h-5 w-5" />
@@ -256,7 +229,7 @@ export default async function DashboardPage() {
                     Healthy
                   </Badge>
                 </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-200 overflow-hidden">
                   <div className="h-full bg-green-500" style={{ width: `${systemHealth.uptime}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{systemHealth.uptime}% uptime</p>
@@ -270,7 +243,7 @@ export default async function DashboardPage() {
                   </div>
                   <span className="text-sm text-green-600 font-medium">{systemHealth.responseTime}ms</span>
                 </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-200 overflow-hidden">
                   <div className="h-full bg-blue-500" style={{ width: `${Math.min(100, Math.max(0, 100 - (systemHealth.responseTime / 10)))}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Avg response time</p>
@@ -284,7 +257,7 @@ export default async function DashboardPage() {
                   </div>
                   <span className="text-sm font-medium">{systemHealth.storageUsed} GB</span>
                 </div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-2 bg-gray-200 overflow-hidden">
                   <div className="h-full bg-orange-500" style={{ width: `${(systemHealth.storageUsed / systemHealth.storageTotal) * 100}%` }} />
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">{Math.round((systemHealth.storageUsed / systemHealth.storageTotal) * 100)}% of {systemHealth.storageTotal} GB used</p>
@@ -294,7 +267,7 @@ export default async function DashboardPage() {
         </Card>
 
         {/* Quick Actions Card */}
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1 border shadow-none rounded-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Zap className="h-5 w-5" />
@@ -307,7 +280,7 @@ export default async function DashboardPage() {
               <Link href="/collections">
                 <Button 
                   variant="outline"
-                  className="justify-start h-auto py-3 hover:bg-blue-50 hover:border-blue-300 w-full"
+                  className="justify-start h-auto py-3 hover:bg-muted w-full rounded-none"
                 >
                   <Database className="h-4 w-4 mr-3 text-blue-600" />
                   <div className="text-left">
@@ -319,7 +292,7 @@ export default async function DashboardPage() {
               <Link href="/collections">
                 <Button 
                   variant="outline"
-                  className="justify-start h-auto py-3 hover:bg-green-50 hover:border-green-300 w-full"
+                  className="justify-start h-auto py-3 hover:bg-muted w-full rounded-none"
                 >
                   <FileJson className="h-4 w-4 mr-3 text-green-600" />
                   <div className="text-left">
@@ -331,7 +304,7 @@ export default async function DashboardPage() {
               <Link href="/access-keys">
                 <Button 
                   variant="outline"
-                  className="justify-start h-auto py-3 hover:bg-purple-50 hover:border-purple-300 w-full"
+                  className="justify-start h-auto py-3 hover:bg-muted w-full rounded-none"
                 >
                   <Key className="h-4 w-4 mr-3 text-purple-600" />
                   <div className="text-left">
@@ -343,7 +316,7 @@ export default async function DashboardPage() {
               <Link href="/users">
                 <Button 
                   variant="outline"
-                  className="justify-start h-auto py-3 hover:bg-orange-50 hover:border-orange-300 w-full"
+                  className="justify-start h-auto py-3 hover:bg-muted w-full rounded-none"
                 >
                   <Users className="h-4 w-4 mr-3 text-orange-600" />
                   <div className="text-left">
@@ -357,7 +330,7 @@ export default async function DashboardPage() {
         </Card>
 
         {/* Recent Activity Card */}
-        <Card className="lg:col-span-1">
+        <Card className="lg:col-span-1 border shadow-none rounded-none">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
@@ -368,8 +341,8 @@ export default async function DashboardPage() {
           <CardContent>
             <div className="space-y-3">
               {activities.length > 0 ? activities.map((activity, index) => (
-                <div key={index} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className={`p-2 rounded-lg bg-muted`}>
+                <div key={index} className="flex items-start gap-3 p-2 hover:bg-muted/50 transition-colors">
+                  <div className={`p-2 bg-muted`}>
                     <activity.icon className={`h-4 w-4 ${activity.color}`} />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -389,7 +362,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Getting Started Guide */}
-      <Card className="border-2">
+      <Card className="border shadow-none rounded-none mt-6">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -404,13 +377,13 @@ export default async function DashboardPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="relative p-4 border-2 border-dashed rounded-lg hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group">
+            <div className="relative p-4 border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group">
               <div className="absolute -top-3 left-4 bg-background px-2">
                 <Badge variant="outline" className="font-mono">Step 1</Badge>
               </div>
               <div className="mt-2">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="p-2 rounded-lg bg-blue-100 group-hover:bg-blue-200 transition-colors">
+                  <div className="p-2 bg-blue-100 group-hover:bg-blue-200 transition-colors">
                     <Database className="h-5 w-5 text-blue-600" />
                   </div>
                   <h4 className="font-semibold">Create Collections</h4>
@@ -427,13 +400,13 @@ export default async function DashboardPage() {
               </div>
             </div>
             
-            <div className="relative p-4 border-2 border-dashed rounded-lg hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group">
+            <div className="relative p-4 border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group">
               <div className="absolute -top-3 left-4 bg-background px-2">
                 <Badge variant="outline" className="font-mono">Step 2</Badge>
               </div>
               <div className="mt-2">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="p-2 rounded-lg bg-green-100 group-hover:bg-green-200 transition-colors">
+                  <div className="p-2 bg-green-100 group-hover:bg-green-200 transition-colors">
                     <FileJson className="h-5 w-5 text-green-600" />
                   </div>
                   <h4 className="font-semibold">Add Documents</h4>
@@ -450,13 +423,13 @@ export default async function DashboardPage() {
               </div>
             </div>
             
-            <div className="relative p-4 border-2 border-dashed rounded-lg hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group">
+            <div className="relative p-4 border-2 border-dashed hover:border-primary hover:bg-primary/5 transition-all cursor-pointer group">
               <div className="absolute -top-3 left-4 bg-background px-2">
                 <Badge variant="outline" className="font-mono">Step 3</Badge>
               </div>
               <div className="mt-2">
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="p-2 rounded-lg bg-purple-100 group-hover:bg-purple-200 transition-colors">
+                  <div className="p-2 bg-purple-100 group-hover:bg-purple-200 transition-colors">
                     <Shield className="h-5 w-5 text-purple-600" />
                   </div>
                   <h4 className="font-semibold">Configure Access</h4>
@@ -475,6 +448,7 @@ export default async function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

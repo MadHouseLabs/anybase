@@ -57,7 +57,7 @@ function getRoleIcon(role: string) {
 
 export function UsersTable({ users, canEditUsers, currentUserEmail }: UsersTableProps) {
   return (
-    <div className="rounded-md border">
+    <div className="border">
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
@@ -75,7 +75,7 @@ export function UsersTable({ users, canEditUsers, currentUserEmail }: UsersTable
             <TableRow>
               <TableCell colSpan={canEditUsers ? 7 : 6} className="text-center py-12">
                 <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className="p-3 rounded-full bg-muted">
+                  <div className="p-3 bg-muted">
                     <UserX className="h-8 w-8 text-muted-foreground" />
                   </div>
                   <p className="text-lg font-medium text-muted-foreground">No users found</p>
@@ -92,9 +92,9 @@ export function UsersTable({ users, canEditUsers, currentUserEmail }: UsersTable
                 <TableRow key={user._id || user.id} className="hover:bg-muted/30 transition-colors">
                   <TableCell>
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-10 w-10 border-2">
+                      <Avatar className="h-10 w-10 border-2 rounded-none">
                         <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.email}&backgroundColor=3b82f6,10b981,8b5cf6,f59e0b`} />
-                        <AvatarFallback className="font-semibold bg-primary/10">
+                        <AvatarFallback className="font-semibold bg-primary/10 rounded-none">
                           {getInitials(user)}
                         </AvatarFallback>
                       </Avatar>

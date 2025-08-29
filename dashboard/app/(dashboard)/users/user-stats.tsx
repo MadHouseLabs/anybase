@@ -14,7 +14,7 @@ interface UserStatsProps {
 export function UserStats({ stats }: UserStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Total Users</CardTitle>
           <Users className="h-4 w-4 text-muted-foreground" />
@@ -24,7 +24,7 @@ export function UserStats({ stats }: UserStatsProps) {
           <p className="text-xs text-muted-foreground">Registered accounts</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Administrators</CardTitle>
           <Shield className="h-4 w-4 text-muted-foreground" />
@@ -34,7 +34,7 @@ export function UserStats({ stats }: UserStatsProps) {
           <p className="text-xs text-muted-foreground">Full access users</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Developers</CardTitle>
           <Shield className="h-4 w-4 text-muted-foreground" />
@@ -44,7 +44,7 @@ export function UserStats({ stats }: UserStatsProps) {
           <p className="text-xs text-muted-foreground">Standard users</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Active</CardTitle>
           <UserCheck className="h-4 w-4 text-green-600" />
@@ -54,7 +54,7 @@ export function UserStats({ stats }: UserStatsProps) {
           <p className="text-xs text-muted-foreground">Can access system</p>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="rounded-none shadow-none">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium">Inactive</CardTitle>
           <UserX className="h-4 w-4 text-red-600" />

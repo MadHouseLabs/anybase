@@ -86,7 +86,7 @@ export function SettingsTabs({ initialUserSettings, initialSystemSettings, userR
       </TabsList>
 
       <TabsContent value="user" className="space-y-4">
-        <Card>
+        <Card className="rounded-none shadow-none">
           <CardHeader>
             <CardTitle>Appearance</CardTitle>
             <CardDescription>
@@ -130,7 +130,7 @@ export function SettingsTabs({ initialUserSettings, initialSystemSettings, userR
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-none shadow-none">
           <CardHeader>
             <CardTitle>Regional Settings</CardTitle>
             <CardDescription>
@@ -183,7 +183,7 @@ export function SettingsTabs({ initialUserSettings, initialSystemSettings, userR
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="rounded-none shadow-none">
           <CardHeader>
             <CardTitle>Notifications</CardTitle>
             <CardDescription>
@@ -235,7 +235,7 @@ export function SettingsTabs({ initialUserSettings, initialSystemSettings, userR
 
       {(userRole === "admin" || userRole === "developer") && (
         <TabsContent value="system" className="space-y-4">
-          <Card>
+          <Card className="rounded-none shadow-none">
             <CardHeader>
               <CardTitle>System Configuration</CardTitle>
               <CardDescription>
