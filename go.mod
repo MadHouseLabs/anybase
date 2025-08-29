@@ -1,4 +1,4 @@
-module github.com/karthik/anybase
+module github.com/madhouselabs/anybase
 
 go 1.23.0
 

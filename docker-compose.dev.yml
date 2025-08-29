@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # MongoDB for development
+  mongodb:
+    image: mongo:7.0
+    container_name: anybase-mongodb-dev
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpassword
+      MONGO_INITDB_DATABASE: anybase
+    volumes:
+      - mongodb_dev_data:/data/db
+    networks:
+      - anybase-dev-network
+
+  # Backend API (development with hot reload)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: anybase-backend-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DB_CONNECTION_STRING: mongodb://admin:adminpassword@mongodb:27017/anybase?authSource=admin
+      DB_NAME: anybase
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      SERVER_MODE: development
+      JWT_SECRET: dev-secret-key
+      JWT_EXPIRY: 24h
+      REFRESH_TOKEN_EXPIRY: 168h
+      CORS_ALLOWED_ORIGINS: "*"
+    volumes:
+      - .:/app
+      - /app/vendor
+    depends_on:
+      - mongodb
+    networks:
+      - anybase-dev-network
+    command: air
+
+  # Dashboard (development with hot reload)
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile.dev
+    container_name: anybase-dashboard-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
+      NODE_ENV: development
+    volumes:
+      - ./dashboard:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - anybase-dev-network
+    command: pnpm dev
+
+volumes:
+  mongodb_dev_data:
+    driver: local
+
+networks:
+  anybase-dev-network:
+    driver: bridge

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/karthik/anybase/internal/accesskey"
-	"github.com/karthik/anybase/pkg/models"
+	"github.com/madhouselabs/anybase/internal/accesskey"
+	"github.com/madhouselabs/anybase/pkg/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"

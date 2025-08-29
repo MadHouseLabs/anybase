@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/karthik/anybase/internal/database"
+	"github.com/madhouselabs/anybase/internal/database"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/karthik/anybase/pkg/models"
+	"github.com/madhouselabs/anybase/pkg/models"
 )
 
 // SchemaValidator validates documents against OpenAPI schema

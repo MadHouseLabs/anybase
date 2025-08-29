@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/karthik/anybase/internal/collection"
-	"github.com/karthik/anybase/pkg/models"
+	"github.com/madhouselabs/anybase/internal/collection"
+	"github.com/madhouselabs/anybase/pkg/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

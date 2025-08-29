@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/karthik/anybase/internal/user"
-	"github.com/karthik/anybase/pkg/models"
+	"github.com/madhouselabs/anybase/internal/user"
+	"github.com/madhouselabs/anybase/pkg/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"

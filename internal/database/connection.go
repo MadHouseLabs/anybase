@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/karthik/anybase/internal/config"
+	"github.com/madhouselabs/anybase/internal/config"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"

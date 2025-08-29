@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/karthik/anybase/internal/config"
+	"github.com/madhouselabs/anybase/internal/config"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

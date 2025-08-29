@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/karthik/anybase/internal/accesskey"
+	"github.com/madhouselabs/anybase/internal/accesskey"
 )
 
 // AccessKeyAuthMiddleware handles authentication via access keys

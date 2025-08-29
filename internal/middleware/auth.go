@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/karthik/anybase/internal/auth"
-	"github.com/karthik/anybase/internal/config"
-	"github.com/karthik/anybase/internal/governance"
+	"github.com/madhouselabs/anybase/internal/auth"
+	"github.com/madhouselabs/anybase/internal/config"
+	"github.com/madhouselabs/anybase/internal/governance"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

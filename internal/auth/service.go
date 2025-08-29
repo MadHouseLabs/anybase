@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/karthik/anybase/internal/config"
-	"github.com/karthik/anybase/internal/user"
-	"github.com/karthik/anybase/pkg/models"
+	"github.com/madhouselabs/anybase/internal/config"
+	"github.com/madhouselabs/anybase/internal/user"
+	"github.com/madhouselabs/anybase/pkg/models"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )

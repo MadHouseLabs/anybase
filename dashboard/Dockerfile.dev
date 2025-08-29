@@ -1,0 +1,20 @@
+FROM node:20-alpine
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json pnpm-lock.yaml ./
+
+# Install dependencies
+RUN pnpm install
+
+# The source code will be mounted as a volume
+# So we don't copy it here
+
+EXPOSE 3000
+
+# Start development server
+CMD ["pnpm", "dev"]
