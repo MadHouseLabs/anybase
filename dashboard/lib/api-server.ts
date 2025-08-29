@@ -61,7 +61,7 @@ export async function getSystemHealth() {
       };
     }
   } catch (error) {
-    console.log("Health endpoint not available, using defaults");
+    // Health endpoint not available, using defaults
   }
   
   // Return default values if health endpoint doesn't exist
