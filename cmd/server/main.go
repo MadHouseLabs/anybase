@@ -14,7 +14,7 @@ import (
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	v1 "github.com/madhouselabs/anybase/api/v1"
-	_ "github.com/madhouselabs/anybase/docs"
+	// _ "github.com/madhouselabs/anybase/docs" // Commented out for Docker build
 	"github.com/madhouselabs/anybase/internal/accesskey"
 	"github.com/madhouselabs/anybase/internal/auth"
 	"github.com/madhouselabs/anybase/internal/collection"
