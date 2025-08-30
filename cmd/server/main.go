@@ -39,20 +39,21 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	db := database.GetDB()
+	// Get the database adapter
+	dbAdapter := database.GetDB()
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		if err := db.Close(ctx); err != nil {
+		if err := dbAdapter.Close(ctx); err != nil {
 			log.Printf("Error closing database connection: %v", err)
 		}
 	}()
 
-	// Create indexes
+	// Indexes are created during database initialization
 	ctx := context.Background()
-	if err := db.CreateIndexes(ctx); err != nil {
-		log.Printf("Warning: Failed to create indexes: %v", err)
-	}
+
+	// Create compatibility wrapper for repositories that haven't been migrated yet
+	db := database.WrapAdapter(dbAdapter)
 
 	// Initialize repositories and services
 	userRepo := user.NewRepository(db)
@@ -65,7 +66,7 @@ func main() {
 	rbacService := governance.NewRBACService(db)
 	collectionService := collection.NewService(db, rbacService)
 	accessKeyRepo := accesskey.NewRepository(db)
-	settingsService := settings.NewService(db.GetDatabase())
+	settingsService := settings.NewService(database.GetMongoDatabase())
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(&cfg.Auth, rbacService)

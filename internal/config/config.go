@@ -25,6 +25,7 @@ type ServerConfig struct {
 }
 
 type DatabaseConfig struct {
+	Type                  string        `mapstructure:"type"` // mongodb or postgres
 	URI                   string        `mapstructure:"uri"`
 	Database              string        `mapstructure:"database"`
 	MaxPoolSize           uint64        `mapstructure:"max_pool_size"`
@@ -34,6 +35,11 @@ type DatabaseConfig struct {
 	RetryWrites           bool          `mapstructure:"retry_writes"`
 	ReplicaSet            string        `mapstructure:"replica_set"`
 	ServerSelectionTimeout time.Duration `mapstructure:"server_selection_timeout"`
+	
+	// PostgreSQL specific settings
+	SSLMode              string        `mapstructure:"ssl_mode"`       // disable, require, verify-ca, verify-full
+	StatementCacheMode   string        `mapstructure:"statement_cache"` // prepare, describe
+	ConnectTimeout       time.Duration `mapstructure:"connect_timeout"`
 }
 
 type AuthConfig struct {
@@ -106,6 +112,7 @@ func setDefaults() {
 	viper.SetDefault("server.shutdown_timeout", 10*time.Second)
 
 	// Database defaults
+	viper.SetDefault("database.type", "mongodb") // Default to MongoDB for backward compatibility
 	viper.SetDefault("database.uri", "mongodb://localhost:27017")
 	viper.SetDefault("database.database", "anybase")
 	viper.SetDefault("database.max_pool_size", 100)
@@ -114,6 +121,11 @@ func setDefaults() {
 	viper.SetDefault("database.heartbeat_interval", 10*time.Second)
 	viper.SetDefault("database.retry_writes", true)
 	viper.SetDefault("database.server_selection_timeout", 5*time.Second)
+	
+	// PostgreSQL defaults
+	viper.SetDefault("database.ssl_mode", "disable")
+	viper.SetDefault("database.statement_cache", "prepare")
+	viper.SetDefault("database.connect_timeout", 10*time.Second)
 
 	// Auth defaults
 	viper.SetDefault("auth.jwt_expiration", 24*time.Hour)

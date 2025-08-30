@@ -3,187 +3,207 @@ package database
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/madhouselabs/anybase/internal/config"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
-	"go.mongodb.org/mongo-driver/mongo/readpref"
+	"github.com/madhouselabs/anybase/internal/database/adapters/mongodb"
+	"github.com/madhouselabs/anybase/internal/database/types"
+	// "github.com/madhouselabs/anybase/internal/database/adapters/postgres"
 )
 
-type Database struct {
-	client   *mongo.Client
-	database *mongo.Database
-	config   *config.DatabaseConfig
-}
+// Global database instance
+var db types.DB
 
-var db *Database
-
-// Initialize creates a new database connection
+// Initialize creates and connects to the appropriate database based on configuration
 func Initialize(cfg *config.DatabaseConfig) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	clientOptions := options.Client().
-		ApplyURI(cfg.URI).
-		SetMaxPoolSize(cfg.MaxPoolSize).
-		SetMinPoolSize(cfg.MinPoolSize).
-		SetMaxConnIdleTime(cfg.MaxIdleTime).
-		SetHeartbeatInterval(cfg.HeartbeatInterval).
-		SetServerSelectionTimeout(cfg.ServerSelectionTimeout)
-
-	if cfg.ReplicaSet != "" {
-		clientOptions.SetReplicaSet(cfg.ReplicaSet)
+	ctx := context.Background()
+	
+	var adapter types.DB
+	
+	switch cfg.Type {
+	case "", "mongodb":
+		// Default to MongoDB for backward compatibility
+		adapter = mongodb.NewMongoAdapter(cfg)
+		
+	case "postgres", "postgresql":
+		// TODO: Implement PostgreSQL adapter
+		return fmt.Errorf("PostgreSQL adapter not yet implemented")
+		// adapter = postgres.NewPostgresAdapter(cfg)
+		
+	default:
+		return fmt.Errorf("unsupported database type: %s", cfg.Type)
 	}
-
-	// For AWS DocumentDB, disable retryable writes if needed
-	if !cfg.RetryWrites {
-		clientOptions.SetRetryWrites(false)
+	
+	// Connect to the database
+	if err := adapter.Connect(ctx); err != nil {
+		return fmt.Errorf("failed to connect to %s: %w", cfg.Type, err)
 	}
-
-	client, err := mongo.Connect(ctx, clientOptions)
-	if err != nil {
-		return fmt.Errorf("failed to connect to database: %w", err)
+	
+	// Create standard indexes
+	if err := createStandardIndexes(ctx, adapter); err != nil {
+		// Log warning but don't fail initialization
+		fmt.Printf("Warning: Failed to create indexes: %v\n", err)
 	}
-
-	// Ping the database to verify connection
-	if err := client.Ping(ctx, readpref.Primary()); err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	db = &Database{
-		client:   client,
-		database: client.Database(cfg.Database),
-		config:   cfg,
-	}
-
+	
+	db = adapter
 	return nil
 }
 
-// GetDB returns the database instance
-func GetDB() *Database {
+// GetDB returns the current database adapter
+func GetDB() types.DB {
 	if db == nil {
 		panic("database not initialized")
 	}
 	return db
 }
 
-// GetClient returns the MongoDB client
-func (d *Database) GetClient() *mongo.Client {
-	return d.client
-}
-
-// GetDatabase returns the database
-func (d *Database) GetDatabase() *mongo.Database {
-	return d.database
-}
-
-// Collection returns a collection from the database
-func (d *Database) Collection(name string) *mongo.Collection {
-	return d.database.Collection(name)
-}
-
-// Close closes the database connection
-func (d *Database) Close(ctx context.Context) error {
-	if d.client != nil {
-		return d.client.Disconnect(ctx)
-	}
-	return nil
-}
-
-// Ping checks if the database is reachable
-func (d *Database) Ping(ctx context.Context) error {
-	return d.client.Ping(ctx, readpref.Primary())
-}
-
-// RunInTransaction executes a function within a transaction
-func (d *Database) RunInTransaction(ctx context.Context, fn func(sessCtx mongo.SessionContext) error) error {
-	session, err := d.client.StartSession()
-	if err != nil {
-		return fmt.Errorf("failed to start session: %w", err)
-	}
-	defer session.EndSession(ctx)
-
-	callback := func(sessCtx mongo.SessionContext) (interface{}, error) {
-		err := fn(sessCtx)
-		return nil, err
-	}
-
-	_, err = session.WithTransaction(ctx, callback)
-	return err
-}
-
-// CreateIndexes creates indexes for collections
-func (d *Database) CreateIndexes(ctx context.Context) error {
-	// Create indexes for users collection
-	userIndexes := []mongo.IndexModel{
+// createStandardIndexes creates the standard system indexes
+func createStandardIndexes(ctx context.Context, adapter types.DB) error {
+	// Users collection indexes
+	usersCol := adapter.Collection("users")
+	userIndexes := []types.Index{
 		{
-			Keys: map[string]interface{}{
-				"email": 1,
-			},
-			Options: options.Index().SetUnique(true),
+			Name:   "email_unique",
+			Keys:   map[string]int{"email": 1},
+			Unique: true,
 		},
 		{
-			Keys: map[string]interface{}{
-				"username": 1,
-			},
-			Options: options.Index().SetUnique(true).SetSparse(true),
+			Name:   "username_unique",
+			Keys:   map[string]int{"username": 1},
+			Unique: true,
+			Sparse: true,
 		},
 		{
-			Keys: map[string]interface{}{
+			Name: "created_at_desc",
+			Keys: map[string]int{"created_at": -1},
+		},
+	}
+	
+	for _, idx := range userIndexes {
+		if err := usersCol.CreateIndex(ctx, idx); err != nil {
+			// Continue even if index creation fails (might already exist)
+			fmt.Printf("Warning: Failed to create index %s on users: %v\n", idx.Name, err)
+		}
+	}
+	
+	// Access keys collection indexes
+	accessKeysCol := adapter.Collection("access_keys")
+	accessKeyIndexes := []types.Index{
+		{
+			Name:   "name_unique",
+			Keys:   map[string]int{"name": 1},
+			Unique: true,
+		},
+		{
+			Name:   "key_hash_unique",
+			Keys:   map[string]int{"key_hash": 1},
+			Unique: true,
+		},
+		{
+			Name: "owner_id",
+			Keys: map[string]int{"owner_id": 1},
+		},
+	}
+	
+	for _, idx := range accessKeyIndexes {
+		if err := accessKeysCol.CreateIndex(ctx, idx); err != nil {
+			fmt.Printf("Warning: Failed to create index %s on access_keys: %v\n", idx.Name, err)
+		}
+	}
+	
+	// Collections collection indexes
+	collectionsCol := adapter.Collection("collections")
+	collectionIndexes := []types.Index{
+		{
+			Name:   "name_unique",
+			Keys:   map[string]int{"name": 1},
+			Unique: true,
+		},
+		{
+			Name: "created_by",
+			Keys: map[string]int{"created_by": 1},
+		},
+	}
+	
+	for _, idx := range collectionIndexes {
+		if err := collectionsCol.CreateIndex(ctx, idx); err != nil {
+			fmt.Printf("Warning: Failed to create index %s on collections: %v\n", idx.Name, err)
+		}
+	}
+	
+	// Views collection indexes
+	viewsCol := adapter.Collection("views")
+	viewIndexes := []types.Index{
+		{
+			Name:   "name_unique",
+			Keys:   map[string]int{"name": 1},
+			Unique: true,
+		},
+		{
+			Name: "collection",
+			Keys: map[string]int{"collection": 1},
+		},
+		{
+			Name: "created_by",
+			Keys: map[string]int{"created_by": 1},
+		},
+	}
+	
+	for _, idx := range viewIndexes {
+		if err := viewsCol.CreateIndex(ctx, idx); err != nil {
+			fmt.Printf("Warning: Failed to create index %s on views: %v\n", idx.Name, err)
+		}
+	}
+	
+	// Audit logs collection indexes
+	auditLogsCol := adapter.Collection("audit_logs")
+	auditIndexes := []types.Index{
+		{
+			Name: "user_created",
+			Keys: map[string]int{
+				"user_id":    1,
+				"created_at": -1,
+			},
+		},
+		{
+			Name: "action_created",
+			Keys: map[string]int{
+				"action":     1,
 				"created_at": -1,
 			},
 		},
 	}
-
-	if _, err := d.Collection("users").Indexes().CreateMany(ctx, userIndexes); err != nil {
-		return fmt.Errorf("failed to create user indexes: %w", err)
+	
+	for _, idx := range auditIndexes {
+		if err := auditLogsCol.CreateIndex(ctx, idx); err != nil {
+			fmt.Printf("Warning: Failed to create index %s on audit_logs: %v\n", idx.Name, err)
+		}
 	}
-
-	// Create indexes for sessions collection
-	sessionIndexes := []mongo.IndexModel{
+	
+	// Sessions collection indexes with TTL
+	sessionsCol := adapter.Collection("sessions")
+	ttl := SessionTTL
+	sessionIndexes := []types.Index{
 		{
-			Keys: map[string]interface{}{
-				"token": 1,
-			},
-			Options: options.Index().SetUnique(true),
+			Name:   "token_unique",
+			Keys:   map[string]int{"token": 1},
+			Unique: true,
 		},
 		{
-			Keys: map[string]interface{}{
-				"user_id": 1,
-			},
+			Name: "user_id",
+			Keys: map[string]int{"user_id": 1},
 		},
 		{
-			Keys: map[string]interface{}{
-				"expires_at": 1,
-			},
-			Options: options.Index().SetExpireAfterSeconds(0),
+			Name: "expires_at_ttl",
+			Keys: map[string]int{"expires_at": 1},
+			TTL:  &ttl,
 		},
 	}
-
-	if _, err := d.Collection("sessions").Indexes().CreateMany(ctx, sessionIndexes); err != nil {
-		return fmt.Errorf("failed to create session indexes: %w", err)
+	
+	for _, idx := range sessionIndexes {
+		if err := sessionsCol.CreateIndex(ctx, idx); err != nil {
+			fmt.Printf("Warning: Failed to create index %s on sessions: %v\n", idx.Name, err)
+		}
 	}
-
-	// Create indexes for audit_logs collection
-	auditIndexes := []mongo.IndexModel{
-		{
-			Keys: map[string]interface{}{
-				"user_id": 1,
-				"created_at": -1,
-			},
-		},
-		{
-			Keys: map[string]interface{}{
-				"action": 1,
-				"created_at": -1,
-			},
-		},
-	}
-
-	if _, err := d.Collection("audit_logs").Indexes().CreateMany(ctx, auditIndexes); err != nil {
-		return fmt.Errorf("failed to create audit log indexes: %w", err)
-	}
-
+	
 	return nil
 }
