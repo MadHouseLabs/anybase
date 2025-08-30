@@ -11,10 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	v1 "github.com/madhouselabs/anybase/api/v1"
-	// _ "github.com/madhouselabs/anybase/docs" // Commented out for Docker build
 	"github.com/madhouselabs/anybase/internal/accesskey"
 	"github.com/madhouselabs/anybase/internal/auth"
 	"github.com/madhouselabs/anybase/internal/collection"
@@ -29,25 +26,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// @title AnyBase API
-// @version 1.0
-// @description Firebase-like API layer on AWS DocumentDB
-// @termsOfService http://swagger.io/terms/
-
-// @contact.name API Support
-// @contact.url http://www.swagger.io/support
-// @contact.email support@anybase.io
-
-// @license.name MIT
-// @license.url https://opensource.org/licenses/MIT
-
-// @host localhost:8080
-// @BasePath /api/v1
-
-// @securityDefinitions.apikey Bearer
-// @in header
-// @name Authorization
-// @description Type "Bearer" followed by a space and JWT token.
 
 func main() {
 	// Load configuration
@@ -106,12 +84,6 @@ func main() {
 	router.Use(gin.Logger())
 	router.Use(middleware.CORS())
 	router.Use(rateLimiter.Limit())
-
-	// Swagger documentation
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	router.GET("/docs", func(c *gin.Context) {
-		c.Redirect(http.StatusMovedPermanently, "/swagger/index.html")
-	})
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {

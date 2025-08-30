@@ -43,18 +43,6 @@ type AccessKeyResponse struct {
 }
 
 // CreateAccessKey creates a new access key
-// @Summary Create access key
-// @Description Create a new access key with specific permissions
-// @Tags Access Keys
-// @Accept json
-// @Produce json
-// @Param request body CreateAccessKeyRequest true "Access key details"
-// @Success 201 {object} AccessKeyResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security Bearer
-// @Router /api/v1/admin/access-keys [post]
 func (h *AccessKeyHandler) CreateAccessKey(c *gin.Context) {
 	var req CreateAccessKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -108,15 +96,6 @@ func (h *AccessKeyHandler) CreateAccessKey(c *gin.Context) {
 }
 
 // ListAccessKeys lists all access keys for the current user
-// @Summary List access keys
-// @Description Get a list of all access keys created by the current user
-// @Tags Access Keys
-// @Produce json
-// @Success 200 {array} AccessKeyResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security Bearer
-// @Router /api/v1/admin/access-keys [get]
 func (h *AccessKeyHandler) ListAccessKeys(c *gin.Context) {
 	// Get current user ID from context
 	userID, _ := c.Get("user_id")
@@ -156,17 +135,6 @@ func (h *AccessKeyHandler) ListAccessKeys(c *gin.Context) {
 }
 
 // GetAccessKey gets a specific access key
-// @Summary Get access key
-// @Description Get details of a specific access key
-// @Tags Access Keys
-// @Produce json
-// @Param id path string true "Access key ID"
-// @Success 200 {object} AccessKeyResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security Bearer
-// @Router /api/v1/admin/access-keys/{id} [get]
 func (h *AccessKeyHandler) GetAccessKey(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -209,20 +177,6 @@ func (h *AccessKeyHandler) GetAccessKey(c *gin.Context) {
 }
 
 // UpdateAccessKey updates an access key
-// @Summary Update access key
-// @Description Update an access key's details (cannot change permissions)
-// @Tags Access Keys
-// @Accept json
-// @Produce json
-// @Param id path string true "Access key ID"
-// @Param request body map[string]interface{} true "Updates"
-// @Success 200 {object} AccessKeyResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security Bearer
-// @Router /api/v1/admin/access-keys/{id} [put]
 func (h *AccessKeyHandler) UpdateAccessKey(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -284,17 +238,6 @@ func (h *AccessKeyHandler) UpdateAccessKey(c *gin.Context) {
 }
 
 // RegenerateAccessKey regenerates an access key
-// @Summary Regenerate access key
-// @Description Generate a new key for an existing access key
-// @Tags Access Keys
-// @Produce json
-// @Param id path string true "Access key ID"
-// @Success 200 {object} map[string]string
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security Bearer
-// @Router /api/v1/admin/access-keys/{id}/regenerate [post]
 func (h *AccessKeyHandler) RegenerateAccessKey(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)
@@ -336,16 +279,6 @@ func (h *AccessKeyHandler) RegenerateAccessKey(c *gin.Context) {
 }
 
 // DeleteAccessKey deletes an access key
-// @Summary Delete access key
-// @Description Delete an access key permanently
-// @Tags Access Keys
-// @Param id path string true "Access key ID"
-// @Success 200 {object} map[string]string
-// @Failure 401 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Security Bearer
-// @Router /api/v1/admin/access-keys/{id} [delete]
 func (h *AccessKeyHandler) DeleteAccessKey(c *gin.Context) {
 	id := c.Param("id")
 	objID, err := primitive.ObjectIDFromHex(id)
