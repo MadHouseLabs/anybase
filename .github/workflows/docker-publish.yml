@@ -7,10 +7,28 @@ on:
       - master
     tags:
       - 'v*'
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'CONTRIBUTING.md'
+      - '.gitignore'
+      - 'docs/**'
+      - '.env.example'
+      - 'Taskfile.yml'
+      - '.air.toml'
   pull_request:
     branches:
       - main
       - master
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+      - 'CONTRIBUTING.md'
+      - '.gitignore'
+      - 'docs/**'
+      - '.env.example'
+      - 'Taskfile.yml'
+      - '.air.toml'
   workflow_dispatch:
 
 env:
