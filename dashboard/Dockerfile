@@ -18,13 +18,7 @@ COPY . .
 
 # Build the application with standalone output
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN pnpm build && \
-    echo "=== Checking build output ===" && \
-    ls -la && \
-    echo "=== .next contents ===" && \
-    ls -la .next/ && \
-    echo "=== Looking for standalone ===" && \
-    (ls -la .next/standalone/ && echo "=== Standalone contents ===" && ls -la .next/standalone/*/  || echo "No standalone directory found")
+RUN pnpm build
 
 # Production stage
 FROM node:20-alpine AS runner
@@ -43,8 +37,8 @@ WORKDIR /app
 # Copy public assets if they exist
 COPY --from=builder /app/public ./public
 
-# Copy standalone server - the path is .next/standalone/dashboard/
-COPY --from=builder /app/.next/standalone/dashboard/ ./
+# Copy standalone server - the path is .next/standalone/app/ in Docker build
+COPY --from=builder /app/.next/standalone/app/ ./
 
 # Copy static files
 COPY --from=builder /app/.next/static ./.next/static
