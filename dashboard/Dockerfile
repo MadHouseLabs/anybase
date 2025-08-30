@@ -16,9 +16,15 @@ RUN pnpm install --force
 # Copy source code
 COPY . .
 
-# Build the application
+# Build the application with standalone output
 ENV NEXT_TELEMETRY_DISABLED 1
-RUN pnpm build
+RUN pnpm build && \
+    echo "=== Checking build output ===" && \
+    ls -la && \
+    echo "=== .next contents ===" && \
+    ls -la .next/ && \
+    echo "=== Looking for standalone ===" && \
+    (ls -la .next/standalone/ && echo "=== Standalone contents ===" && ls -la .next/standalone/*/  || echo "No standalone directory found")
 
 # Production stage
 FROM node:20-alpine AS runner
