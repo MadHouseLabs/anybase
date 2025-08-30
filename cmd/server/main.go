@@ -24,6 +24,9 @@ import (
 	"github.com/madhouselabs/anybase/internal/middleware"
 	"github.com/madhouselabs/anybase/internal/settings"
 	"github.com/madhouselabs/anybase/internal/user"
+	"github.com/madhouselabs/anybase/pkg/models"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // @title AnyBase API
@@ -76,6 +79,11 @@ func main() {
 	// Initialize repositories and services
 	userRepo := user.NewRepository(db)
 	authService := auth.NewService(userRepo, &cfg.Auth)
+	
+	// Initialize admin user if needed
+	if err := initializeAdminUser(ctx, userRepo, authService); err != nil {
+		log.Printf("Warning: Failed to initialize admin user: %v", err)
+	}
 	rbacService := governance.NewRBACService(db)
 	collectionService := collection.NewService(db, rbacService)
 	accessKeyRepo := accesskey.NewRepository(db)
@@ -284,5 +292,60 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 	{
 		settingsAdminGroup.PUT("/system", settingsHandler.UpdateSystemSettings)
 	}
+}
+
+// initializeAdminUser creates an initial admin user if no admin users exist
+func initializeAdminUser(ctx context.Context, userRepo user.Repository, authService auth.Service) error {
+	// Check if any admin users exist
+	filter := bson.M{"role": "admin", "deleted_at": nil}
+	users, err := userRepo.List(ctx, filter, nil)
+	if err != nil && err != mongo.ErrNoDocuments {
+		return fmt.Errorf("failed to check for existing admin users: %w", err)
+	}
+	
+	// If admin users already exist, skip initialization
+	if len(users) > 0 {
+		log.Println("Admin user already exists, skipping initialization")
+		return nil
+	}
+	
+	// Get admin credentials from environment variables
+	adminEmail := os.Getenv("INIT_ADMIN_EMAIL")
+	adminPassword := os.Getenv("INIT_ADMIN_PASSWORD")
+	
+	// If not set, use defaults (but log a warning)
+	if adminEmail == "" {
+		adminEmail = "admin@anybase.local"
+		log.Println("Warning: INIT_ADMIN_EMAIL not set, using default: admin@anybase.local")
+	}
+	
+	if adminPassword == "" {
+		adminPassword = "admin123"
+		log.Println("Warning: INIT_ADMIN_PASSWORD not set, using default: admin123")
+		log.Println("IMPORTANT: Please change the admin password after first login!")
+	}
+	
+	// Create the admin user using UserRegistration model
+	adminUser, err := authService.Register(ctx, &models.UserRegistration{
+		Email:     adminEmail,
+		Password:  adminPassword,
+		FirstName: "Admin",
+		LastName:  "User",
+	})
+	
+	if err != nil {
+		return fmt.Errorf("failed to create initial admin user: %w", err)
+	}
+	
+	// Update the user role to admin
+	updateData := bson.M{"$set": bson.M{"role": "admin"}}
+	if err := userRepo.UpdateRaw(ctx, adminUser.ID, updateData); err != nil {
+		return fmt.Errorf("failed to set admin role: %w", err)
+	}
+	
+	log.Printf("Successfully created initial admin user: %s", adminEmail)
+	log.Println("Please change the admin password after first login!")
+	
+	return nil
 }
 

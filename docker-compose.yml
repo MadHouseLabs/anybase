@@ -14,7 +14,6 @@ services:
       MONGO_INITDB_DATABASE: anybase
     volumes:
       - mongodb_data:/data/db
-      - ./scripts/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - anybase-network
     healthcheck:
@@ -48,6 +47,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-your-secret-key-change-in-production}
       JWT_EXPIRY: 24h
       REFRESH_TOKEN_EXPIRY: 168h
+      
+      # Initial admin setup (only used on first run)
+      INIT_ADMIN_EMAIL: ${INIT_ADMIN_EMAIL:-admin@anybase.local}
+      INIT_ADMIN_PASSWORD: ${INIT_ADMIN_PASSWORD:-admin123}
       
       # CORS configuration
       CORS_ALLOWED_ORIGINS: http://localhost:3000,http://dashboard:3000
