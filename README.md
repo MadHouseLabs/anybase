@@ -276,7 +276,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📧 Email: support@madhouselabs.io
 - 🐛 Issues: [GitHub Issues](https://github.com/MadHouseLabs/anybase/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/MadHouseLabs/anybase/discussions)
 
