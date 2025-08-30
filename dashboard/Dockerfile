@@ -34,9 +34,13 @@ RUN addgroup -g 1001 -S nodejs && \
 WORKDIR /app
 
 # Copy necessary files from builder
-# The standalone output is in .next/standalone/dashboard/
+# Copy public assets if they exist
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone/dashboard ./
+
+# Copy standalone server - the path is .next/standalone/dashboard/
+COPY --from=builder /app/.next/standalone/dashboard/ ./
+
+# Copy static files
 COPY --from=builder /app/.next/static ./.next/static
 
 # Set environment to production
