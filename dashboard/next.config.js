@@ -2,6 +2,7 @@
 const path = require('path');
 
 const nextConfig = {
+  output: 'standalone',
   outputFileTracingRoot: path.join(__dirname, '../'),
   eslint: {
     // Skip ESLint during builds in CI
