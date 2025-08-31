@@ -826,8 +826,8 @@ export default function CollectionDetailPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      indexes.map((index: any) => (
-                        <TableRow key={index.name}>
+                      indexes.map((index: any, idx: number) => (
+                        <TableRow key={index.name || `index-${idx}`}>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <code className="text-sm font-medium">{index.name}</code>
@@ -838,7 +838,7 @@ export default function CollectionDetailPage() {
                           </TableCell>
                           <TableCell>
                             <code className="text-xs bg-muted px-2 py-1 rounded">
-                              {Object.entries(index.key || {}).map(([field, direction]) => 
+                              {Object.entries(index.keys || {}).map(([field, direction]) => 
                                 `${field}${direction === -1 ? ' (desc)' : ''}`
                               ).join(", ")}
                             </code>

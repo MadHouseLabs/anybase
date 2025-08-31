@@ -784,6 +784,7 @@ func (h *CollectionHandler) QueryDocuments(c *gin.Context) {
 			return
 		}
 		
+		
 		// Get total count for pagination (for access keys, pass nil userID)
 		totalCount, err := h.collectionService.CountDocuments(ctx, primitive.NilObjectID, collectionName, query.Filter)
 		if err != nil {
@@ -867,6 +868,7 @@ func (h *CollectionHandler) QueryDocuments(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+	
 	
 	// Get total count for pagination
 	totalCount, err := h.collectionService.CountDocuments(c.Request.Context(), userID, collectionName, query.Filter)

@@ -56,7 +56,10 @@ func NewService(userRepo user.Repository, config *config.AuthConfig) Service {
 
 func (s *service) Register(ctx context.Context, req *models.UserRegistration) (*models.User, error) {
 	// Check if user already exists
-	existingUser, _ := s.userRepo.GetByEmail(ctx, req.Email)
+	existingUser, err := s.userRepo.GetByEmail(ctx, req.Email)
+	if err != nil && err != user.ErrUserNotFound {
+		return nil, fmt.Errorf("failed to check existing user: %w", err)
+	}
 	if existingUser != nil {
 		return nil, user.ErrUserAlreadyExists
 	}
@@ -73,7 +76,6 @@ func (s *service) Register(ctx context.Context, req *models.UserRegistration) (*
 	// Create user
 	newUser := &models.User{
 		Email:                  req.Email,
-		Username:               req.Username,
 		Password:               hashedPassword,
 		FirstName:              req.FirstName,
 		LastName:               req.LastName,

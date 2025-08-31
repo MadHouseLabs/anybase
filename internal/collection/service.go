@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/madhouselabs/anybase/internal/database"
+	"github.com/madhouselabs/anybase/internal/database/types"
 	"github.com/madhouselabs/anybase/internal/governance"
 	"github.com/madhouselabs/anybase/internal/validator"
 	"github.com/madhouselabs/anybase/pkg/models"
@@ -15,6 +16,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
+
+// Helper function to check if error is a no documents error
+func isNoDocumentsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return err == mongo.ErrNoDocuments || err == types.ErrNoDocuments || strings.Contains(err.Error(), "no documents")
+}
 
 type Service interface {
 	// Collection management
@@ -105,7 +114,7 @@ func (s *service) CreateCollection(ctx context.Context, userID primitive.ObjectI
 	// Create the actual MongoDB collection
 	if err := s.db.GetDatabase().CreateCollection(ctx, "data_"+collection.Name); err != nil {
 		// Collection might already exist, which is okay for our metadata
-		if !mongo.IsDuplicateKeyError(err) && err.Error() != "collection already exists" {
+		if !strings.Contains(err.Error(), "duplicate") && !strings.Contains(err.Error(), "already exists") {
 			return fmt.Errorf("failed to create MongoDB collection: %w", err)
 		}
 	}
@@ -131,7 +140,7 @@ func (s *service) CreateCollection(ctx context.Context, userID primitive.ObjectI
 func (s *service) GetCollection(ctx context.Context, userID primitive.ObjectID, name string) (*models.Collection, error) {
 	var collection models.Collection
 	if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": name}).Decode(&collection); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if isNoDocumentsError(err) {
 			return nil, fmt.Errorf("collection not found")
 		}
 		return nil, fmt.Errorf("failed to get collection: %w", err)
@@ -366,7 +375,7 @@ func (s *service) CreateView(ctx context.Context, userID primitive.ObjectID, vie
 func (s *service) GetView(ctx context.Context, userID primitive.ObjectID, name string) (*models.View, error) {
 	var view models.View
 	if err := s.db.Collection("views").FindOne(ctx, bson.M{"name": name}).Decode(&view); err != nil {
-		if err == mongo.ErrNoDocuments {
+		if isNoDocumentsError(err) {
 			return nil, fmt.Errorf("view not found")
 		}
 		return nil, fmt.Errorf("failed to get view: %w", err)
@@ -553,7 +562,7 @@ func (s *service) InsertDocument(ctx context.Context, mutation *models.DataMutat
 		// Get collection metadata without permission check
 		var col models.Collection
 		if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": mutation.Collection}).Decode(&col); err != nil {
-			if err == mongo.ErrNoDocuments {
+			if isNoDocumentsError(err) {
 				// Collection doesn't exist in metadata, create minimal collection
 				collection = &models.Collection{
 					Name: mutation.Collection,
@@ -617,7 +626,7 @@ func (s *service) UpdateDocument(ctx context.Context, mutation *models.DataMutat
 		// Get collection metadata without permission check
 		var col models.Collection
 		if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": mutation.Collection}).Decode(&col); err != nil {
-			if err == mongo.ErrNoDocuments {
+			if isNoDocumentsError(err) {
 				// Collection doesn't exist in metadata, create minimal collection
 				collection = &models.Collection{
 					Name: mutation.Collection,
@@ -812,7 +821,7 @@ func (s *service) DeleteDocument(ctx context.Context, mutation *models.DataMutat
 		// For access keys, get collection without permission check
 		var col models.Collection
 		if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": mutation.Collection}).Decode(&col); err != nil {
-			if err == mongo.ErrNoDocuments {
+			if isNoDocumentsError(err) {
 				// Collection doesn't exist in metadata, create minimal collection with default soft delete
 				collection = &models.Collection{
 					Name: mutation.Collection,
@@ -902,7 +911,7 @@ func (s *service) QueryDocuments(ctx context.Context, query *models.DataQuery) (
 		// For access keys, get collection without permission check
 		var col models.Collection
 		if err := s.db.Collection("collections").FindOne(ctx, bson.M{"name": query.Collection}).Decode(&col); err != nil {
-			if err == mongo.ErrNoDocuments {
+			if isNoDocumentsError(err) {
 				// Collection doesn't exist in metadata, but might exist as MongoDB collection
 				// Create a minimal collection object
 				collection = &models.Collection{

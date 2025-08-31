@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/madhouselabs/anybase/internal/database"
-	"go.mongodb.org/mongo-driver/bson"
+	"github.com/madhouselabs/anybase/internal/database/types"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // SystemRoles defines the fixed system roles
@@ -38,41 +36,41 @@ type RBACService interface {
 }
 
 type rbacService struct {
-	db *database.Database
+	db types.DB
+	usersCollection types.Collection
 }
 
-func NewRBACService(db *database.Database) RBACService {
-	return &rbacService{db: db}
-}
-
-func (s *rbacService) usersCollection() *mongo.Collection {
-	return s.db.Collection("users")
+func NewRBACService(db types.DB) RBACService {
+	return &rbacService{
+		db: db,
+		usersCollection: db.Collection("users"),
+	}
 }
 
 // GetUserRole gets the role of a user
 func (s *rbacService) GetUserRole(ctx context.Context, userID primitive.ObjectID) (string, error) {
-	var user struct {
-		Role string `bson:"role"`
+	var user map[string]interface{}
+
+	// Create filter - handle both MongoDB ObjectID and PostgreSQL UUID
+	filter := map[string]interface{}{
+		"_id": userID.Hex(),
 	}
 
-	err := s.usersCollection().FindOne(
-		ctx,
-		bson.M{"_id": userID},
-	).Decode(&user)
-
+	err := s.usersCollection.FindOne(ctx, filter, &user)
 	if err != nil {
-		if err == mongo.ErrNoDocuments {
+		if err == types.ErrNoDocuments {
 			return "", fmt.Errorf("user not found")
 		}
 		return "", fmt.Errorf("failed to get user role: %w", err)
 	}
 
-	// Default to developer if no role set
-	if user.Role == "" {
+	// Extract role from the user map
+	role, ok := user["role"].(string)
+	if !ok || role == "" {
 		return "developer", nil
 	}
 
-	return user.Role, nil
+	return role, nil
 }
 
 // SetUserRole sets the role of a user (admin or developer only)
@@ -82,11 +80,15 @@ func (s *rbacService) SetUserRole(ctx context.Context, userID primitive.ObjectID
 		return fmt.Errorf("invalid role: must be 'admin' or 'developer'")
 	}
 
-	update := bson.M{
-		"$set": bson.M{"role": role},
+	filter := map[string]interface{}{
+		"_id": userID.Hex(),
 	}
 
-	result, err := s.usersCollection().UpdateOne(ctx, bson.M{"_id": userID}, update)
+	update := map[string]interface{}{
+		"$set": map[string]interface{}{"role": role},
+	}
+
+	result, err := s.usersCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("failed to set user role: %w", err)
 	}
@@ -196,7 +198,7 @@ func (s *rbacService) GetAvailablePermissions(ctx context.Context) ([]string, er
 	}
 
 	// Get all collections for specific permissions
-	collectionsCursor, err := s.db.Collection("collections").Find(ctx, bson.M{})
+	collectionsCursor, err := s.db.Collection("collections").Find(ctx, map[string]interface{}{}, nil)
 	if err == nil {
 		defer collectionsCursor.Close(ctx)
 		var collections []struct{ Name string `bson:"name"` }
@@ -210,7 +212,7 @@ func (s *rbacService) GetAvailablePermissions(ctx context.Context) ([]string, er
 	}
 
 	// Get all views for specific permissions
-	viewsCursor, err := s.db.Collection("views").Find(ctx, bson.M{})
+	viewsCursor, err := s.db.Collection("views").Find(ctx, map[string]interface{}{}, nil)
 	if err == nil {
 		defer viewsCursor.Close(ctx)
 		var views []struct{ Name string `bson:"name"` }

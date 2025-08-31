@@ -6,8 +6,8 @@ import (
 
 	"github.com/madhouselabs/anybase/internal/config"
 	"github.com/madhouselabs/anybase/internal/database/adapters/mongodb"
+	"github.com/madhouselabs/anybase/internal/database/adapters/postgres"
 	"github.com/madhouselabs/anybase/internal/database/types"
-	// "github.com/madhouselabs/anybase/internal/database/adapters/postgres"
 )
 
 // Global database instance
@@ -19,15 +19,17 @@ func Initialize(cfg *config.DatabaseConfig) error {
 	
 	var adapter types.DB
 	
+	fmt.Printf("Initializing database with type: %s\n", cfg.Type)
+	
 	switch cfg.Type {
 	case "", "mongodb":
 		// Default to MongoDB for backward compatibility
+		fmt.Println("Using MongoDB adapter")
 		adapter = mongodb.NewMongoAdapter(cfg)
 		
 	case "postgres", "postgresql":
-		// TODO: Implement PostgreSQL adapter
-		return fmt.Errorf("PostgreSQL adapter not yet implemented")
-		// adapter = postgres.NewPostgresAdapter(cfg)
+		fmt.Println("Using PostgreSQL adapter")
+		adapter = postgres.NewPostgresAdapter(cfg)
 		
 	default:
 		return fmt.Errorf("unsupported database type: %s", cfg.Type)
@@ -65,12 +67,6 @@ func createStandardIndexes(ctx context.Context, adapter types.DB) error {
 			Name:   "email_unique",
 			Keys:   map[string]int{"email": 1},
 			Unique: true,
-		},
-		{
-			Name:   "username_unique",
-			Keys:   map[string]int{"username": 1},
-			Unique: true,
-			Sparse: true,
 		},
 		{
 			Name: "created_at_desc",

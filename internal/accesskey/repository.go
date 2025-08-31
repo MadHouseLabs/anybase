@@ -8,12 +8,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/madhouselabs/anybase/internal/database"
+	types "github.com/madhouselabs/anybase/internal/database/types"
 	"github.com/madhouselabs/anybase/pkg/models"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
-	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -31,23 +29,23 @@ type Repository interface {
 	GetByKey(ctx context.Context, key string) (*models.AccessKey, error)
 	Update(ctx context.Context, id primitive.ObjectID, update bson.M) error
 	Delete(ctx context.Context, id primitive.ObjectID) error
-	List(ctx context.Context, filter bson.M, opts *options.FindOptions) ([]*models.AccessKey, error)
-	Count(ctx context.Context, filter bson.M) (int64, error)
+	List(ctx context.Context, filter interface{}, opts interface{}) ([]*models.AccessKey, error)
+	Count(ctx context.Context, filter interface{}) (int64, error)
 	RegenerateKey(ctx context.Context, id primitive.ObjectID) (string, error)
 	UpdateLastUsed(ctx context.Context, id primitive.ObjectID) error
 	ValidateKey(ctx context.Context, key string) (*models.AccessKey, error)
 }
 
 type repository struct {
-	db *database.Database
+	db types.DB
+	collection types.Collection
 }
 
-func NewRepository(db *database.Database) Repository {
-	return &repository{db: db}
-}
-
-func (r *repository) collection() *mongo.Collection {
-	return r.db.Collection("access_keys")
+func NewRepository(db types.DB) Repository {
+	return &repository{
+		db: db,
+		collection: db.Collection("access_keys"),
+	}
 }
 
 func (r *repository) Create(ctx context.Context, ak *models.AccessKey) (string, error) {
@@ -66,9 +64,22 @@ func (r *repository) Create(ctx context.Context, ak *models.AccessKey) (string, 
 	ak.CreatedAt = time.Now()
 	ak.UpdatedAt = time.Now()
 
-	_, err = r.collection().InsertOne(ctx, ak)
+	doc := map[string]interface{}{
+		"_id": ak.ID,
+		"name": ak.Name,
+		"key_hash": ak.KeyHash,
+		"description": ak.Description,
+		"permissions": ak.Permissions,
+		"created_by": ak.CreatedBy,
+		"active": ak.Active,
+		"expires_at": ak.ExpiresAt,
+		"created_at": ak.CreatedAt,
+		"updated_at": ak.UpdatedAt,
+	}
+	
+	_, err = r.collection.InsertOne(ctx, doc)
 	if err != nil {
-		if mongo.IsDuplicateKeyError(err) {
+		if err.Error() == "duplicate key error" {
 			return "", ErrAccessKeyAlreadyExists
 		}
 		return "", fmt.Errorf("failed to create access key: %w", err)
@@ -79,11 +90,11 @@ func (r *repository) Create(ctx context.Context, ak *models.AccessKey) (string, 
 
 func (r *repository) GetByID(ctx context.Context, id primitive.ObjectID) (*models.AccessKey, error) {
 	var ak models.AccessKey
-	filter := bson.M{"_id": id}
+	filter := map[string]interface{}{"_id": id}
 
-	err := r.collection().FindOne(ctx, filter).Decode(&ak)
+	err := r.collection.FindOne(ctx, filter, &ak)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if err.Error() == "no documents found" {
 			return nil, ErrAccessKeyNotFound
 		}
 		return nil, fmt.Errorf("failed to get access key: %w", err)
@@ -94,11 +105,11 @@ func (r *repository) GetByID(ctx context.Context, id primitive.ObjectID) (*model
 
 func (r *repository) GetByName(ctx context.Context, name string) (*models.AccessKey, error) {
 	var ak models.AccessKey
-	filter := bson.M{"name": name}
+	filter := map[string]interface{}{"name": name}
 
-	err := r.collection().FindOne(ctx, filter).Decode(&ak)
+	err := r.collection.FindOne(ctx, filter, &ak)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		if err.Error() == "no documents found" {
 			return nil, ErrAccessKeyNotFound
 		}
 		return nil, fmt.Errorf("failed to get access key by name: %w", err)
@@ -109,7 +120,7 @@ func (r *repository) GetByName(ctx context.Context, name string) (*models.Access
 
 func (r *repository) GetByKey(ctx context.Context, key string) (*models.AccessKey, error) {
 	// Get all active keys and check them one by one (bcrypt doesn't allow direct lookup)
-	cursor, err := r.collection().Find(ctx, bson.M{"active": true})
+	cursor, err := r.collection.Find(ctx, map[string]interface{}{"active": true}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find access keys: %w", err)
 	}
@@ -147,14 +158,15 @@ func (r *repository) ValidateKey(ctx context.Context, key string) (*models.Acces
 }
 
 func (r *repository) Update(ctx context.Context, id primitive.ObjectID, update bson.M) error {
-	filter := bson.M{"_id": id}
+	filter := map[string]interface{}{"_id": id}
 	
-	if update["$set"] == nil {
-		update["$set"] = bson.M{}
+	updateMap := map[string]interface{}(update)
+	if updateMap["$set"] == nil {
+		updateMap["$set"] = map[string]interface{}{}
 	}
-	update["$set"].(bson.M)["updated_at"] = time.Now()
+	updateMap["$set"].(map[string]interface{})["updated_at"] = time.Now()
 
-	result, err := r.collection().UpdateOne(ctx, filter, update)
+	result, err := r.collection.UpdateOne(ctx, filter, updateMap)
 	if err != nil {
 		return fmt.Errorf("failed to update access key: %w", err)
 	}
@@ -167,8 +179,8 @@ func (r *repository) Update(ctx context.Context, id primitive.ObjectID, update b
 }
 
 func (r *repository) Delete(ctx context.Context, id primitive.ObjectID) error {
-	filter := bson.M{"_id": id}
-	result, err := r.collection().DeleteOne(ctx, filter)
+	filter := map[string]interface{}{"_id": id}
+	result, err := r.collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return fmt.Errorf("failed to delete access key: %w", err)
 	}
@@ -180,31 +192,69 @@ func (r *repository) Delete(ctx context.Context, id primitive.ObjectID) error {
 	return nil
 }
 
-func (r *repository) List(ctx context.Context, filter bson.M, opts *options.FindOptions) ([]*models.AccessKey, error) {
+func (r *repository) List(ctx context.Context, filter interface{}, opts interface{}) ([]*models.AccessKey, error) {
 	if filter == nil {
-		filter = bson.M{}
+		filter = map[string]interface{}{}
+	}
+	
+	// Convert bson.M to map if needed
+	filterMap, ok := filter.(map[string]interface{})
+	if !ok {
+		if bsonFilter, ok := filter.(bson.M); ok {
+			filterMap = map[string]interface{}(bsonFilter)
+		} else {
+			filterMap = map[string]interface{}{}
+		}
 	}
 
-	cursor, err := r.collection().Find(ctx, filter, opts)
+	// Convert opts if needed
+	var findOpts *types.FindOptions
+	if opts != nil {
+		// Check if it's already types.FindOptions
+		if typedOpts, ok := opts.(*types.FindOptions); ok {
+			findOpts = typedOpts
+		} else {
+			// Convert from MongoDB options to types.FindOptions
+			findOpts = &types.FindOptions{}
+			// MongoDB options don't directly map, so we'll use defaults
+		}
+	}
+	
+	cursor, err := r.collection.Find(ctx, filterMap, findOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list access keys: %w", err)
 	}
 	defer cursor.Close(ctx)
 
 	var accessKeys []*models.AccessKey
-	if err := cursor.All(ctx, &accessKeys); err != nil {
-		return nil, fmt.Errorf("failed to decode access keys: %w", err)
+	for cursor.Next(ctx) {
+		var ak models.AccessKey
+		if err := cursor.Decode(&ak); err != nil {
+			return nil, fmt.Errorf("failed to decode access key: %w", err)
+		}
+		accessKeys = append(accessKeys, &ak)
 	}
+
 
 	return accessKeys, nil
 }
 
-func (r *repository) Count(ctx context.Context, filter bson.M) (int64, error) {
+func (r *repository) Count(ctx context.Context, filter interface{}) (int64, error) {
 	if filter == nil {
-		filter = bson.M{}
+		filter = map[string]interface{}{}
+	}
+	
+	// Convert bson.M to map if needed
+	filterMap, ok := filter.(map[string]interface{})
+	if !ok {
+		if bsonFilter, ok := filter.(bson.M); ok {
+			filterMap = map[string]interface{}(bsonFilter)
+		} else {
+			filterMap = map[string]interface{}{}
+		}
 	}
 
-	count, err := r.collection().CountDocuments(ctx, filter)
+	count, err := r.collection.CountDocuments(ctx, filterMap)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count access keys: %w", err)
 	}
@@ -246,7 +296,7 @@ func (r *repository) UpdateLastUsed(ctx context.Context, id primitive.ObjectID) 
 		},
 	}
 
-	_, err := r.collection().UpdateOne(ctx, filter, update)
+	_, err := r.collection.UpdateOne(ctx, filter, update)
 	return err
 }
 

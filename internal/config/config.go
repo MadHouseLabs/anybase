@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -84,6 +85,7 @@ func Load(configPath string) (*Config, error) {
 
 	// Bind environment variables
 	viper.SetEnvPrefix("ANYBASE")
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
 	if err := viper.ReadInConfig(); err != nil {

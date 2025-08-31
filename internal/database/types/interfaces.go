@@ -89,11 +89,11 @@ type DeleteResult struct {
 // Index represents a database index
 // For PostgreSQL, this creates GIN indexes on JSONB paths
 type Index struct {
-	Name   string
-	Keys   map[string]int // For PostgreSQL: creates GIN index on data->'field'
-	Unique bool
-	Sparse bool
-	TTL    *time.Duration // For PostgreSQL: handled via trigger
+	Name   string         `json:"name"`
+	Keys   map[string]int `json:"keys"` // For PostgreSQL: creates GIN index on data->'field'
+	Unique bool           `json:"unique"`
+	Sparse bool           `json:"sparse"`
+	TTL    *time.Duration `json:"ttl"` // For PostgreSQL: handled via trigger
 }
 
 // ID represents a generic database ID

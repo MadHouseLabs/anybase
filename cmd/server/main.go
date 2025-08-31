@@ -22,8 +22,6 @@ import (
 	"github.com/madhouselabs/anybase/internal/settings"
 	"github.com/madhouselabs/anybase/internal/user"
 	"github.com/madhouselabs/anybase/pkg/models"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 
@@ -52,21 +50,37 @@ func main() {
 	// Indexes are created during database initialization
 	ctx := context.Background()
 
-	// Create compatibility wrapper for repositories that haven't been migrated yet
-	db := database.WrapAdapter(dbAdapter)
+	// Create compatibility wrapper for services that haven't been migrated yet
+	dbWrapper := database.WrapAdapter(dbAdapter)
 
 	// Initialize repositories and services
-	userRepo := user.NewRepository(db)
+	userRepo := user.NewRepository(dbAdapter)
 	authService := auth.NewService(userRepo, &cfg.Auth)
 	
 	// Initialize admin user if needed
 	if err := initializeAdminUser(ctx, userRepo, authService); err != nil {
 		log.Printf("Warning: Failed to initialize admin user: %v", err)
 	}
-	rbacService := governance.NewRBACService(db)
-	collectionService := collection.NewService(db, rbacService)
-	accessKeyRepo := accesskey.NewRepository(db)
-	settingsService := settings.NewService(database.GetMongoDatabase())
+	rbacService := governance.NewRBACService(dbAdapter)
+	
+	// Use adapter-based collection service for non-MongoDB databases
+	var collectionService collection.Service
+	if database.IsUsingMongoDB() {
+		collectionService = collection.NewService(dbWrapper, rbacService)
+	} else {
+		collectionService = collection.NewAdapterService(dbAdapter, rbacService)
+	}
+	
+	accessKeyRepo := accesskey.NewRepository(dbAdapter)
+	
+	// Settings service
+	var settingsService settings.Service
+	if database.IsUsingMongoDB() {
+		settingsService = settings.NewService(database.GetMongoDatabase())
+	} else {
+		// Use adapter-based settings service for PostgreSQL
+		settingsService = settings.NewAdapterService(dbAdapter)
+	}
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(&cfg.Auth, rbacService)
@@ -88,7 +102,7 @@ func main() {
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
-		if err := db.Ping(c.Request.Context()); err != nil {
+		if err := dbAdapter.Ping(c.Request.Context()); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{
 				"status": "unhealthy",
 				"error":  "Database connection failed",
@@ -249,30 +263,32 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 		usersWriteGroup.DELETE("/:id", userHandler.DeleteUser)
 	}
 
-	// Settings endpoints
-	settingsHandler := v1.NewSettingsHandler(settingsService)
-	settingsGroup := api.Group("/settings")
-	settingsGroup.Use(authMiddleware.RequireAuth())
-	{
-		settingsGroup.GET("/user", settingsHandler.GetUserSettings)
-		settingsGroup.PUT("/user", settingsHandler.UpdateUserSettings)
-		settingsGroup.GET("/system", settingsHandler.GetSystemSettings)
-	}
-	
-	// System settings update - admin only
-	settingsAdminGroup := api.Group("/settings")
-	settingsAdminGroup.Use(authMiddleware.RequireRole("admin"))
-	{
-		settingsAdminGroup.PUT("/system", settingsHandler.UpdateSystemSettings)
+	// Settings endpoints (only if settings service is available)
+	if settingsService != nil {
+		settingsHandler := v1.NewSettingsHandler(settingsService)
+		settingsGroup := api.Group("/settings")
+		settingsGroup.Use(authMiddleware.RequireAuth())
+		{
+			settingsGroup.GET("/user", settingsHandler.GetUserSettings)
+			settingsGroup.PUT("/user", settingsHandler.UpdateUserSettings)
+			settingsGroup.GET("/system", settingsHandler.GetSystemSettings)
+		}
+		
+		// System settings update - admin only
+		settingsAdminGroup := api.Group("/settings")
+		settingsAdminGroup.Use(authMiddleware.RequireRole("admin"))
+		{
+			settingsAdminGroup.PUT("/system", settingsHandler.UpdateSystemSettings)
+		}
 	}
 }
 
 // initializeAdminUser creates an initial admin user if no admin users exist
 func initializeAdminUser(ctx context.Context, userRepo user.Repository, authService auth.Service) error {
 	// Check if any admin users exist
-	filter := bson.M{"role": "admin", "deleted_at": nil}
+	filter := map[string]interface{}{"role": "admin", "deleted_at": nil}
 	users, err := userRepo.List(ctx, filter, nil)
-	if err != nil && err != mongo.ErrNoDocuments {
+	if err != nil {
 		return fmt.Errorf("failed to check for existing admin users: %w", err)
 	}
 	
@@ -299,7 +315,7 @@ func initializeAdminUser(ctx context.Context, userRepo user.Repository, authServ
 	}
 	
 	// Create the admin user using UserRegistration model
-	adminUser, err := authService.Register(ctx, &models.UserRegistration{
+	_, err = authService.Register(ctx, &models.UserRegistration{
 		Email:     adminEmail,
 		Password:  adminPassword,
 		FirstName: "Admin",
@@ -310,9 +326,21 @@ func initializeAdminUser(ctx context.Context, userRepo user.Repository, authServ
 		return fmt.Errorf("failed to create initial admin user: %w", err)
 	}
 	
-	// Update the user role to admin
-	updateData := bson.M{"$set": bson.M{"role": "admin"}}
-	if err := userRepo.UpdateRaw(ctx, adminUser.ID, updateData); err != nil {
+	// Update the user role to admin by email (works for both MongoDB and PostgreSQL)
+	// Since we just created the user, we'll update by email which is unique
+	updateFilter := map[string]interface{}{
+		"email": adminEmail,
+	}
+	updateData := map[string]interface{}{
+		"$set": map[string]interface{}{
+			"role": "admin",
+		},
+	}
+	
+	// Direct collection update to avoid ID issues
+	dbAdapter := database.GetDB()
+	usersCol := dbAdapter.Collection("users")
+	if _, err = usersCol.UpdateOne(ctx, updateFilter, updateData); err != nil {
 		return fmt.Errorf("failed to set admin role: %w", err)
 	}
 	

@@ -1,7 +1,7 @@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Shield, UserCheck, UserX, Clock, Calendar, AtSign, User } from "lucide-react";
+import { Shield, UserCheck, UserX, Clock, Calendar, User } from "lucide-react";
 import { UserActionsCell } from "./users-client-components";
 import { format } from 'date-fns';
 
@@ -11,7 +11,6 @@ interface UserType {
   email: string;
   first_name?: string;
   last_name?: string;
-  username?: string;
   role: string;
   active: boolean;
   last_login?: string;
@@ -62,7 +61,6 @@ export function UsersTable({ users, canEditUsers, currentUserEmail }: UsersTable
         <TableHeader>
           <TableRow className="bg-muted/50">
             <TableHead className="font-semibold">User</TableHead>
-            <TableHead className="font-semibold">Username</TableHead>
             <TableHead className="font-semibold">Role</TableHead>
             <TableHead className="font-semibold">Status</TableHead>
             <TableHead className="font-semibold">Last Activity</TableHead>
@@ -73,7 +71,7 @@ export function UsersTable({ users, canEditUsers, currentUserEmail }: UsersTable
         <TableBody>
           {users.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={canEditUsers ? 7 : 6} className="text-center py-12">
+              <TableCell colSpan={canEditUsers ? 6 : 5} className="text-center py-12">
                 <div className="flex flex-col items-center justify-center space-y-2">
                   <div className="p-3 bg-muted">
                     <UserX className="h-8 w-8 text-muted-foreground" />
@@ -112,12 +110,6 @@ export function UsersTable({ users, canEditUsers, currentUserEmail }: UsersTable
                           {user.email}
                         </div>
                       </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-sm">
-                      <AtSign className="h-3 w-3 text-muted-foreground" />
-                      <span className="font-mono">{user.username || '-'}</span>
                     </div>
                   </TableCell>
                   <TableCell>

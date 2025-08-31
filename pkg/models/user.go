@@ -18,7 +18,6 @@ const (
 type User struct {
 	ID                primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Email             string             `bson:"email" json:"email" validate:"required,email"`
-	Username          string             `bson:"username,omitempty" json:"username,omitempty" validate:"omitempty,min=3,max=50"`
 	Password          string             `bson:"password" json:"-"` // Never expose password in JSON
 	FirstName         string             `bson:"first_name,omitempty" json:"first_name,omitempty"`
 	LastName          string             `bson:"last_name,omitempty" json:"last_name,omitempty"`
@@ -42,7 +41,6 @@ type User struct {
 // UserRegistration represents the user registration request
 type UserRegistration struct {
 	Email     string `json:"email" validate:"required,email"`
-	Username  string `json:"username,omitempty" validate:"omitempty,min=3,max=50"`
 	Password  string `json:"password" validate:"required,min=8"`
 	FirstName string `json:"first_name,omitempty"`
 	LastName  string `json:"last_name,omitempty"`
@@ -56,7 +54,6 @@ type UserLogin struct {
 
 // UserUpdate represents the user update request
 type UserUpdate struct {
-	Username  string                 `json:"username,omitempty" validate:"omitempty,min=3,max=50"`
 	FirstName string                 `json:"first_name,omitempty"`
 	LastName  string                 `json:"last_name,omitempty"`
 	Avatar    string                 `json:"avatar,omitempty"`
