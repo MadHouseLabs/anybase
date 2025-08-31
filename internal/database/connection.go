@@ -127,26 +127,31 @@ func createStandardIndexes(ctx context.Context, adapter types.DB) error {
 	}
 	
 	// Views collection indexes
-	viewsCol := adapter.Collection("views")
-	viewIndexes := []types.Index{
-		{
-			Name:   "name_unique",
-			Keys:   map[string]int{"name": 1},
-			Unique: true,
-		},
-		{
-			Name: "collection",
-			Keys: map[string]int{"collection": 1},
-		},
-		{
-			Name: "created_by",
-			Keys: map[string]int{"created_by": 1},
-		},
-	}
-	
-	for _, idx := range viewIndexes {
-		if err := viewsCol.CreateIndex(ctx, idx); err != nil {
-			fmt.Printf("Warning: Failed to create index %s on views: %v\n", idx.Name, err)
+	// Note: For PostgreSQL, the _views table and its indexes are created
+	// during adapter initialization in initializeSchema()
+	// Only create indexes for MongoDB which uses "views" collection
+	if dbType == "mongodb" {
+		viewsCol := adapter.Collection("views")
+		viewIndexes := []types.Index{
+			{
+				Name:   "name_unique",
+				Keys:   map[string]int{"name": 1},
+				Unique: true,
+			},
+			{
+				Name: "collection",
+				Keys: map[string]int{"collection": 1},
+			},
+			{
+				Name: "created_by",
+				Keys: map[string]int{"created_by": 1},
+			},
+		}
+		
+		for _, idx := range viewIndexes {
+			if err := viewsCol.CreateIndex(ctx, idx); err != nil {
+				fmt.Printf("Warning: Failed to create index %s on views: %v\n", idx.Name, err)
+			}
 		}
 	}
 	

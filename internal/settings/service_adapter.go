@@ -24,14 +24,26 @@ func NewAdapterService(db types.DB) Service {
 
 // GetUserSettings retrieves user-specific settings
 func (s *AdapterService) GetUserSettings(ctx context.Context, userID primitive.ObjectID) (*models.Settings, error) {
-	col := s.db.Collection("user_settings")
+	col := s.db.Collection("settings")
 	
 	filter := map[string]interface{}{
-		"user_id": userID.Hex(),
+		"data": map[string]interface{}{
+			"$elemMatch": map[string]interface{}{
+				"type": "user",
+				"user_id": userID.Hex(),
+			},
+		},
 	}
 	
-	var settings models.Settings
-	if err := col.FindOne(ctx, filter, &settings); err != nil {
+	// For PostgreSQL, we need to use JSONB query
+	// Since settings are stored in data field, we'll use a simpler approach
+	filter = map[string]interface{}{
+		"data.type": "user",
+		"data.user_id": userID.Hex(),
+	}
+	
+	var result map[string]interface{}
+	if err := col.FindOne(ctx, filter, &result); err != nil {
 		if err == types.ErrNoDocuments {
 			// Return default settings if none exist
 			return &models.Settings{
@@ -46,22 +58,58 @@ func (s *AdapterService) GetUserSettings(ctx context.Context, userID primitive.O
 		return nil, fmt.Errorf("failed to get user settings: %w", err)
 	}
 	
-	return &settings, nil
+	// Extract settings from result
+	settings := &models.Settings{
+		UserID:    userID,
+		Theme:     "light",
+		Language:  "en",
+		Timezone:  "UTC",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	
+	if data, ok := result["data"].(map[string]interface{}); ok {
+		if theme, ok := data["theme"].(string); ok {
+			settings.Theme = theme
+		}
+		if lang, ok := data["language"].(string); ok {
+			settings.Language = lang
+		}
+		if tz, ok := data["timezone"].(string); ok {
+			settings.Timezone = tz
+		}
+		if df, ok := data["date_format"].(string); ok {
+			settings.DateFormat = df
+		}
+		if tf, ok := data["time_format"].(string); ok {
+			settings.TimeFormat = tf
+		}
+		if en, ok := data["email_notifications"].(bool); ok {
+			settings.EmailNotifications = en
+		}
+		if sa, ok := data["security_alerts"].(bool); ok {
+			settings.SecurityAlerts = sa
+		}
+	}
+	
+	return settings, nil
 }
 
 // UpdateUserSettings updates user-specific settings
 func (s *AdapterService) UpdateUserSettings(ctx context.Context, userID primitive.ObjectID, settings *models.Settings) error {
-	col := s.db.Collection("user_settings")
+	col := s.db.Collection("settings")
 	
 	settings.UserID = userID
 	settings.UpdatedAt = time.Now()
 	
 	filter := map[string]interface{}{
-		"user_id": userID.Hex(),
+		"data.type": "user",
+		"data.user_id": userID.Hex(),
 	}
 	
 	// Convert settings to map for update
 	updateData := map[string]interface{}{
+		"type":                "user",
 		"user_id":             userID.Hex(),
 		"theme":               settings.Theme,
 		"language":            settings.Language,
@@ -75,7 +123,9 @@ func (s *AdapterService) UpdateUserSettings(ctx context.Context, userID primitiv
 	
 	// Try to update first
 	updateDoc := map[string]interface{}{
-		"$set": updateData,
+		"$set": map[string]interface{}{
+			"data": updateData,
+		},
 	}
 	
 	result, err := col.UpdateOne(ctx, filter, updateDoc)
@@ -86,10 +136,14 @@ func (s *AdapterService) UpdateUserSettings(ctx context.Context, userID primitiv
 	// If no document was matched, insert a new one
 	if result.MatchedCount == 0 {
 		// Create new settings document with ID
-		updateData["_id"] = primitive.NewObjectID().Hex()
 		updateData["created_at"] = time.Now()
 		
-		if _, err := col.InsertOne(ctx, updateData); err != nil {
+		newDoc := map[string]interface{}{
+			"_id":  primitive.NewObjectID().Hex(),
+			"data": updateData,
+		}
+		
+		if _, err := col.InsertOne(ctx, newDoc); err != nil {
 			return fmt.Errorf("failed to create user settings: %w", err)
 		}
 	}
@@ -99,15 +153,15 @@ func (s *AdapterService) UpdateUserSettings(ctx context.Context, userID primitiv
 
 // GetSystemSettings retrieves system-wide settings
 func (s *AdapterService) GetSystemSettings(ctx context.Context) (*models.SystemSettings, error) {
-	col := s.db.Collection("system_settings")
+	col := s.db.Collection("settings")
 	
-	// System settings should have a fixed ID
+	// System settings should have type: "system"
 	filter := map[string]interface{}{
-		"_id": "system",
+		"data.type": "system",
 	}
 	
-	var settings models.SystemSettings
-	if err := col.FindOne(ctx, filter, &settings); err != nil {
+	var result map[string]interface{}
+	if err := col.FindOne(ctx, filter, &result); err != nil {
 		if err == types.ErrNoDocuments {
 			// Return default system settings if none exist
 			return &models.SystemSettings{
@@ -126,22 +180,76 @@ func (s *AdapterService) GetSystemSettings(ctx context.Context) (*models.SystemS
 		return nil, fmt.Errorf("failed to get system settings: %w", err)
 	}
 	
-	return &settings, nil
+	// Extract settings from result
+	settings := &models.SystemSettings{
+		ID:                primitive.NewObjectID(),
+		ConnectionPoolSize: 100,
+		QueryTimeout:      30,
+		MaxRetries:        3,
+		SessionTimeout:    24,
+		PasswordPolicy:    "moderate",
+		RateLimit:         100,
+		BurstLimit:        200,
+		CORSEnabled:       true,
+		UpdatedAt:         time.Now(),
+	}
+	
+	if data, ok := result["data"].(map[string]interface{}); ok {
+		if cps, ok := data["connection_pool_size"].(float64); ok {
+			settings.ConnectionPoolSize = int(cps)
+		}
+		if qt, ok := data["query_timeout"].(float64); ok {
+			settings.QueryTimeout = int(qt)
+		}
+		if mr, ok := data["max_retries"].(float64); ok {
+			settings.MaxRetries = int(mr)
+		}
+		if ce, ok := data["compression_enabled"].(bool); ok {
+			settings.CompressionEnabled = ce
+		}
+		if ee, ok := data["encryption_enabled"].(bool); ok {
+			settings.EncryptionEnabled = ee
+		}
+		if st, ok := data["session_timeout"].(float64); ok {
+			settings.SessionTimeout = int(st)
+		}
+		if pp, ok := data["password_policy"].(string); ok {
+			settings.PasswordPolicy = pp
+		}
+		if mfa, ok := data["mfa_required"].(bool); ok {
+			settings.MFARequired = mfa
+		}
+		if ale, ok := data["audit_log_enabled"].(bool); ok {
+			settings.AuditLogEnabled = ale
+		}
+		if rl, ok := data["rate_limit"].(float64); ok {
+			settings.RateLimit = int(rl)
+		}
+		if bl, ok := data["burst_limit"].(float64); ok {
+			settings.BurstLimit = int(bl)
+		}
+		if cors, ok := data["cors_enabled"].(bool); ok {
+			settings.CORSEnabled = cors
+		}
+	}
+	
+	return settings, nil
 }
 
 // UpdateSystemSettings updates system-wide settings
 func (s *AdapterService) UpdateSystemSettings(ctx context.Context, userID primitive.ObjectID, settings *models.SystemSettings) error {
-	col := s.db.Collection("system_settings")
+	col := s.db.Collection("settings")
 	
 	settings.UpdatedAt = time.Now()
 	settings.UpdatedBy = userID
 	
 	filter := map[string]interface{}{
-		"_id": "system",
+		"data.type": "system",
 	}
 	
 	// Convert settings to map for update
 	updateData := map[string]interface{}{
+		"type":                 "system",
 		"connection_pool_size": settings.ConnectionPoolSize,
 		"query_timeout":        settings.QueryTimeout,
 		"max_retries":          settings.MaxRetries,
@@ -160,7 +268,9 @@ func (s *AdapterService) UpdateSystemSettings(ctx context.Context, userID primit
 	
 	// Try to update first
 	updateDoc := map[string]interface{}{
-		"$set": updateData,
+		"$set": map[string]interface{}{
+			"data": updateData,
+		},
 	}
 	
 	result, err := col.UpdateOne(ctx, filter, updateDoc)
@@ -170,10 +280,12 @@ func (s *AdapterService) UpdateSystemSettings(ctx context.Context, userID primit
 	
 	// If no document was matched, insert a new one
 	if result.MatchedCount == 0 {
-		// Add _id for new document
-		updateData["_id"] = "system"
+		newDoc := map[string]interface{}{
+			"_id":  primitive.NewObjectID().Hex(),
+			"data": updateData,
+		}
 		
-		if _, err := col.InsertOne(ctx, updateData); err != nil {
+		if _, err := col.InsertOne(ctx, newDoc); err != nil {
 			return fmt.Errorf("failed to create system settings: %w", err)
 		}
 	}
