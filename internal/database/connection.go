@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/madhouselabs/anybase/internal/config"
-	"github.com/madhouselabs/anybase/internal/database/adapters/mongodb"
 	"github.com/madhouselabs/anybase/internal/database/adapters/postgres"
 	"github.com/madhouselabs/anybase/internal/database/types"
 )
@@ -22,12 +21,8 @@ func Initialize(cfg *config.DatabaseConfig) error {
 	fmt.Printf("Initializing database with type: %s\n", cfg.Type)
 	
 	switch cfg.Type {
-	case "", "mongodb":
-		// Default to MongoDB for backward compatibility
-		fmt.Println("Using MongoDB adapter")
-		adapter = mongodb.NewMongoAdapter(cfg)
-		
-	case "postgres", "postgresql":
+	case "postgres", "postgresql", "":
+		// Default to PostgreSQL
 		fmt.Println("Using PostgreSQL adapter")
 		adapter = postgres.NewPostgresAdapter(cfg)
 		
@@ -126,34 +121,7 @@ func createStandardIndexes(ctx context.Context, adapter types.DB) error {
 		}
 	}
 	
-	// Views collection indexes
-	// Note: For PostgreSQL, the _views table and its indexes are created
-	// during adapter initialization in initializeSchema()
-	// Only create indexes for MongoDB which uses "views" collection
-	if dbType == "mongodb" {
-		viewsCol := adapter.Collection("views")
-		viewIndexes := []types.Index{
-			{
-				Name:   "name_unique",
-				Keys:   map[string]int{"name": 1},
-				Unique: true,
-			},
-			{
-				Name: "collection",
-				Keys: map[string]int{"collection": 1},
-			},
-			{
-				Name: "created_by",
-				Keys: map[string]int{"created_by": 1},
-			},
-		}
-		
-		for _, idx := range viewIndexes {
-			if err := viewsCol.CreateIndex(ctx, idx); err != nil {
-				fmt.Printf("Warning: Failed to create index %s on views: %v\n", idx.Name, err)
-			}
-		}
-	}
+	// Views collection indexes are created during adapter initialization for PostgreSQL
 	
 	// Audit logs collection indexes
 	auditLogsCol := adapter.Collection("audit_logs")

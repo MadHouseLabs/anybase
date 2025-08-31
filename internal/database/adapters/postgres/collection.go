@@ -32,7 +32,13 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 	if docID, ok := document["_id"]; ok {
 		// Store the MongoDB-style ID (hex string) for application compatibility
 		if strID, ok := docID.(string); ok {
-			mongoID = strID
+			// Validate that it's a proper MongoDB ObjectID (24 hex chars)
+			if objID, err := primitive.ObjectIDFromHex(strID); err == nil {
+				mongoID = objID.Hex() // Use the validated hex
+			} else {
+				// Invalid ID provided - generate a new valid one
+				mongoID = primitive.NewObjectID().Hex()
+			}
 			// Try to parse as UUID for PostgreSQL _id column
 			parsedID, err := uuid.Parse(strID)
 			if err == nil {
@@ -41,9 +47,14 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 				// Not a UUID, generate a new one for PostgreSQL
 				id = uuid.New()
 			}
-		} else {
+		} else if objID, ok := docID.(primitive.ObjectID); ok {
+			// Handle ObjectID type directly
+			mongoID = objID.Hex()
 			id = uuid.New()
-			mongoID = id.String()
+		} else {
+			// Invalid type - generate new IDs
+			id = uuid.New()
+			mongoID = primitive.NewObjectID().Hex()
 		}
 	} else {
 		id = uuid.New()
@@ -258,10 +269,16 @@ func (c *PostgresCollection) FindOne(ctx context.Context, filter map[string]inte
 		}
 	} else if docPtr, ok := result.(*models.Document); ok {
 		// Handle Document type specifically
-		// Get the _id from the JSONB data
+		// Get the _id from the JSONB data and remember if it was invalid
+		var invalidID string
 		if idStr, ok := dataMap["_id"].(string); ok {
 			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
 				docPtr.ID = objID
+			} else {
+				// Generate a new ObjectID for invalid IDs
+				docPtr.ID = primitive.NewObjectID()
+				// Remember the invalid ID to add to data later
+				invalidID = idStr
 			}
 		}
 		
@@ -293,6 +310,14 @@ func (c *PostgresCollection) FindOne(ctx context.Context, filter map[string]inte
 				}
 			}
 			docPtr.Data = cleanData
+		}
+		
+		// Add the original invalid ID if there was one
+		if invalidID != "" {
+			if docPtr.Data == nil {
+				docPtr.Data = make(map[string]interface{})
+			}
+			docPtr.Data["_original_id"] = invalidID
 		}
 		
 		// Set created_by and updated_by from column values

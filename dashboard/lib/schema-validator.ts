@@ -103,7 +103,16 @@ function validateProperty(
 
   // Check type
   const actualType = getJsonType(value);
-  if (!types.includes(actualType)) {
+  
+  // Special case: 'number' type should accept both integers and floats
+  let typeMatches = false;
+  if (types.includes('number') && (actualType === 'number' || actualType === 'integer')) {
+    typeMatches = true;
+  } else if (types.includes(actualType)) {
+    typeMatches = true;
+  }
+  
+  if (!typeMatches) {
     errors.push({
       field: fieldPath,
       message: `Field "${fieldPath}" must be of type ${types.join(' or ')}, got ${actualType}`,

@@ -64,8 +64,8 @@ func (s *AdapterService) CreateCollection(ctx context.Context, userID primitive.
 	// Set metadata
 	collection.ID = primitive.NewObjectID()
 	collection.CreatedBy = userID
-	collection.CreatedAt = time.Now()
-	collection.UpdatedAt = time.Now()
+	collection.CreatedAt = time.Now().UTC()
+	collection.UpdatedAt = time.Now().UTC()
 
 	// Create the actual collection in the database
 	dataCollectionName := "data_" + collection.Name
@@ -166,7 +166,7 @@ func (s *AdapterService) UpdateCollection(ctx context.Context, userID primitive.
 	if updates == nil {
 		updates = bson.M{}
 	}
-	updates["updated_at"] = time.Now()
+	updates["updated_at"] = time.Now().UTC()
 
 	collectionsCol := s.db.Collection("collections")
 	
@@ -232,53 +232,8 @@ func (s *AdapterService) DeleteCollection(ctx context.Context, userID primitive.
 	return nil
 }
 
-// ListCollections lists collections with governance checks
-func (s *AdapterService) ListCollections(ctx context.Context, userID primitive.ObjectID) ([]*models.Collection, error) {
-	// Get user role
-	userRole, err := s.rbacService.GetUserRole(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user role: %w", err)
-	}
-
-	collectionsCol := s.db.Collection("collections")
-	
-	// Build filter based on role
-	filter := map[string]interface{}{}
-	
-	// Non-admin users can only see collections they created or have explicit permission for
-	if userRole != "admin" {
-		// For now, developers can see all collections
-		if userRole != "developer" {
-			filter["created_by"] = userID.Hex()
-		}
-	}
-
-	cursor, err := collectionsCol.Find(ctx, filter, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list collections: %w", err)
-	}
-	defer cursor.Close(ctx)
-
-	var collections []*models.Collection
-	for cursor.Next(ctx) {
-		var col models.Collection
-		if err := cursor.Decode(&col); err != nil {
-			continue
-		}
-
-		// Get document count for each collection
-		dataCol := s.db.Collection("data_" + col.Name)
-		docCount, _ := dataCol.CountDocuments(ctx, map[string]interface{}{})
-		col.DocumentCount = int64(docCount)
-
-		collections = append(collections, &col)
-	}
-
-	return collections, nil
-}
-
-// ListAllCollections lists all collections (admin only)
-func (s *AdapterService) ListAllCollections(ctx context.Context) ([]*models.Collection, error) {
+// ListCollections lists all collections in the system
+func (s *AdapterService) ListCollections(ctx context.Context) ([]*models.Collection, error) {
 	collectionsCol := s.db.Collection("collections")
 	
 	cursor, err := collectionsCol.Find(ctx, map[string]interface{}{}, nil)
@@ -348,42 +303,380 @@ func (s *AdapterService) logAccess(ctx context.Context, userID primitive.ObjectI
 		"action":      action,
 		"result":      result,
 		"reason":      reason,
-		"timestamp":   time.Now(),
+		"timestamp":   time.Now().UTC(),
 	}
 	
 	// Best effort logging - don't fail the operation if logging fails
 	logsCol.InsertOne(ctx, logEntry)
 }
 
-// Stub implementations for remaining methods - these need to be implemented
+// CreateView creates a new view (saved query)
 func (s *AdapterService) CreateView(ctx context.Context, userID primitive.ObjectID, view *models.View) error {
-	// TODO: Implement using database adapter
-	return fmt.Errorf("not implemented for database adapter yet")
+	// Check permissions
+	if hasPermission, err := s.rbacService.HasPermission(ctx, userID, "view:*:create", ""); err != nil {
+		return fmt.Errorf("failed to check permissions: %w", err)
+	} else if !hasPermission {
+		s.logAccess(ctx, userID, view.Name, nil, "create", "denied", "insufficient permissions")
+		return fmt.Errorf("insufficient permissions to create view")
+	}
+
+	// Check if view already exists
+	viewsCol := s.db.Collection("_views")
+	existingCount, err := viewsCol.CountDocuments(ctx, map[string]interface{}{
+		"data.name": view.Name,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to check existing view: %w", err)
+	}
+	if existingCount > 0 {
+		return fmt.Errorf("view '%s' already exists", view.Name)
+	}
+
+	// Verify the source collection exists
+	collectionsCol := s.db.Collection("collections")
+	collCount, err := collectionsCol.CountDocuments(ctx, map[string]interface{}{
+		"name": view.Collection,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to check collection: %w", err)
+	}
+	if collCount == 0 {
+		return fmt.Errorf("collection '%s' does not exist", view.Collection)
+	}
+
+	// Set metadata
+	view.ID = primitive.NewObjectID()
+	view.CreatedBy = userID
+	view.CreatedAt = time.Now().UTC()
+	view.UpdatedAt = time.Now().UTC()
+
+	// Convert view to JSONB format for PostgreSQL storage
+	viewDoc := map[string]interface{}{
+		"_id": view.ID.Hex(),
+		"data": map[string]interface{}{
+			"name":        view.Name,
+			"description": view.Description,
+			"collection":  view.Collection,
+			"pipeline":    view.Pipeline,
+			"fields":      view.Fields,
+			"filter":      view.Filter,
+			"permissions": view.Permissions,
+			"metadata":    view.Metadata,
+			"created_by":  userID.Hex(),
+			"created_at":  view.CreatedAt,
+			"updated_at":  view.UpdatedAt,
+		},
+	}
+
+	if _, err := viewsCol.InsertOne(ctx, viewDoc); err != nil {
+		return fmt.Errorf("failed to store view: %w", err)
+	}
+
+	s.logAccess(ctx, userID, view.Name, nil, "create", "allowed", "view created")
+	return nil
 }
 
-func (s *AdapterService) GetView(ctx context.Context, userID primitive.ObjectID, name string) (*models.View, error) {
-	// TODO: Implement using database adapter
-	return nil, fmt.Errorf("not implemented for database adapter yet")
+func (s *AdapterService) GetView(ctx context.Context, name string) (*models.View, error) {
+	viewsCol := s.db.Collection("_views")
+	
+	filter := map[string]interface{}{
+		"name": name,
+		"_deleted_at": nil,
+	}
+	
+	var result map[string]interface{}
+	if err := viewsCol.FindOne(ctx, filter, &result); err != nil {
+		if err == types.ErrNoDocuments {
+			return nil, fmt.Errorf("view not found")
+		}
+		return nil, fmt.Errorf("failed to get view: %w", err)
+	}
+
+	// Extract view data from JSONB structure
+	// PostgreSQL adapter may return data either nested or flat
+	var data map[string]interface{}
+	if nested, ok := result["data"].(map[string]interface{}); ok {
+		data = nested
+	} else {
+		// If data is not nested, use the result directly
+		// This happens when the PostgreSQL adapter flattens the JSONB
+		data = result
+	}
+
+	view := &models.View{
+		Name:        getString(data, "name"),
+		Description: getString(data, "description"),
+		Collection:  getString(data, "collection"),
+	}
+
+	// Parse ID
+	if idStr := getString(result, "_id"); idStr != "" {
+		if oid, err := primitive.ObjectIDFromHex(idStr); err == nil {
+			view.ID = oid
+		}
+	}
+
+	// Parse created_by
+	if createdByStr := getString(data, "created_by"); createdByStr != "" {
+		if oid, err := primitive.ObjectIDFromHex(createdByStr); err == nil {
+			view.CreatedBy = oid
+		}
+	}
+
+	// Parse complex fields
+	if pipeline, ok := data["pipeline"].([]interface{}); ok {
+		view.Pipeline = make([]bson.M, len(pipeline))
+		for i, p := range pipeline {
+			if pm, ok := p.(map[string]interface{}); ok {
+				view.Pipeline[i] = bson.M(pm)
+			}
+		}
+	}
+
+	if fields, ok := data["fields"].([]interface{}); ok {
+		view.Fields = make([]string, len(fields))
+		for i, f := range fields {
+			view.Fields[i] = fmt.Sprint(f)
+		}
+	}
+
+	if filter, ok := data["filter"].(map[string]interface{}); ok {
+		view.Filter = bson.M(filter)
+	}
+
+	// Parse timestamps
+	if createdAt, ok := data["created_at"].(time.Time); ok {
+		view.CreatedAt = createdAt
+	}
+	if updatedAt, ok := data["updated_at"].(time.Time); ok {
+		view.UpdatedAt = updatedAt
+	}
+
+	return view, nil
+}
+
+// Helper function to safely get string from map
+func getString(m map[string]interface{}, key string) string {
+	if v, ok := m[key]; ok {
+		return fmt.Sprint(v)
+	}
+	return ""
 }
 
 func (s *AdapterService) UpdateView(ctx context.Context, userID primitive.ObjectID, name string, updates bson.M) error {
-	// TODO: Implement using database adapter
-	return fmt.Errorf("not implemented for database adapter yet")
+	// Check permissions
+	if hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("view:%s:update", name), ""); err != nil {
+		return fmt.Errorf("failed to check permissions: %w", err)
+	} else if !hasPermission {
+		// Check if user has general view update permission
+		if hasPermission, err := s.rbacService.HasPermission(ctx, userID, "view:*:update", ""); err != nil {
+			return fmt.Errorf("failed to check permissions: %w", err)
+		} else if !hasPermission {
+			s.logAccess(ctx, userID, name, nil, "update", "denied", "insufficient permissions")
+			return fmt.Errorf("insufficient permissions to update view")
+		}
+	}
+
+	// Get existing view to verify it exists
+	existingView, err := s.GetView(ctx, name)
+	if err != nil {
+		return fmt.Errorf("view not found: %w", err)
+	}
+
+	// Prepare update document
+	updateDoc := map[string]interface{}{
+		"$set": map[string]interface{}{},
+	}
+	setFields := updateDoc["$set"].(map[string]interface{})
+
+	// Process updates - only update provided fields
+	if desc, ok := updates["description"]; ok {
+		setFields["data.description"] = desc
+	}
+	if pipeline, ok := updates["pipeline"]; ok {
+		setFields["data.pipeline"] = pipeline
+	}
+	if fields, ok := updates["fields"]; ok {
+		setFields["data.fields"] = fields
+	}
+	if filter, ok := updates["filter"]; ok {
+		setFields["data.filter"] = filter
+	}
+	if permissions, ok := updates["permissions"]; ok {
+		setFields["data.permissions"] = permissions
+	}
+	if metadata, ok := updates["metadata"]; ok {
+		setFields["data.metadata"] = metadata
+	}
+
+	// Always update timestamp
+	setFields["data.updated_at"] = time.Now().UTC()
+
+	viewsCol := s.db.Collection("_views")
+	filter := map[string]interface{}{
+		"name": name,
+		"_deleted_at": nil,
+	}
+
+	result, err := viewsCol.UpdateOne(ctx, filter, updateDoc)
+	if err != nil {
+		return fmt.Errorf("failed to update view: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("view not found")
+	}
+
+	s.logAccess(ctx, userID, name, existingView.ID, "update", "allowed", "view updated")
+	return nil
 }
 
 func (s *AdapterService) DeleteView(ctx context.Context, userID primitive.ObjectID, name string) error {
-	// TODO: Implement using database adapter
-	return fmt.Errorf("not implemented for database adapter yet")
+	// Check permissions
+	if hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("view:%s:delete", name), ""); err != nil {
+		return fmt.Errorf("failed to check permissions: %w", err)
+	} else if !hasPermission {
+		// Check if user has general view delete permission
+		if hasPermission, err := s.rbacService.HasPermission(ctx, userID, "view:*:delete", ""); err != nil {
+			return fmt.Errorf("failed to check permissions: %w", err)
+		} else if !hasPermission {
+			s.logAccess(ctx, userID, name, nil, "delete", "denied", "insufficient permissions")
+			return fmt.Errorf("insufficient permissions to delete view")
+		}
+	}
+
+	// Get existing view to verify it exists
+	existingView, err := s.GetView(ctx, name)
+	if err != nil {
+		return fmt.Errorf("view not found: %w", err)
+	}
+
+	viewsCol := s.db.Collection("_views")
+	
+	// Soft delete by setting _deleted_at timestamp
+	filter := map[string]interface{}{
+		"name": name,
+		"_deleted_at": nil,
+	}
+	updateDoc := map[string]interface{}{
+		"$set": map[string]interface{}{
+			"_deleted_at": time.Now().UTC(),
+		},
+	}
+
+	result, err := viewsCol.UpdateOne(ctx, filter, updateDoc)
+	if err != nil {
+		return fmt.Errorf("failed to delete view: %w", err)
+	}
+
+	if result.MatchedCount == 0 {
+		return fmt.Errorf("view not found")
+	}
+
+	s.logAccess(ctx, userID, name, existingView.ID, "delete", "allowed", "view deleted")
+	return nil
 }
 
-func (s *AdapterService) ListViews(ctx context.Context, userID primitive.ObjectID) ([]*models.View, error) {
-	// TODO: Implement using database adapter
-	return nil, fmt.Errorf("not implemented for database adapter yet")
+func (s *AdapterService) ListViews(ctx context.Context) ([]*models.View, error) {
+	viewsCol := s.db.Collection("_views")
+	
+	filter := map[string]interface{}{
+		"_deleted_at": nil,
+	}
+	
+	cursor, err := viewsCol.Find(ctx, filter, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list views: %w", err)
+	}
+	defer cursor.Close(ctx)
+	
+
+	var views []*models.View
+	for cursor.Next(ctx) {
+		var view models.View
+		if err := cursor.Decode(&view); err != nil {
+			continue
+		}
+		views = append(views, &view)
+	}
+	return views, nil
 }
 
 func (s *AdapterService) QueryView(ctx context.Context, userID primitive.ObjectID, viewName string, opts QueryOptions) ([]bson.M, error) {
-	// TODO: Implement using database adapter
-	return nil, fmt.Errorf("not implemented for database adapter yet")
+	// Get the view definition
+	view, err := s.GetView(ctx, viewName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get view: %w", err)
+	}
+
+	// Check permissions if userID is set
+	if userID != primitive.NilObjectID {
+		if hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("view:%s:execute", viewName), ""); err != nil {
+			return nil, fmt.Errorf("failed to check permissions: %w", err)
+		} else if !hasPermission {
+			// Check if user has general view execute permission
+			if hasPermission, err := s.rbacService.HasPermission(ctx, userID, "view:*:execute", ""); err != nil {
+				return nil, fmt.Errorf("failed to check permissions: %w", err)
+			} else if !hasPermission {
+				s.logAccess(ctx, userID, viewName, nil, "execute", "denied", "insufficient permissions")
+				return nil, fmt.Errorf("insufficient permissions to execute view")
+			}
+		}
+	}
+
+	// Build the query from the view's filter
+	filter := map[string]interface{}{}
+	if view.Filter != nil {
+		for k, v := range view.Filter {
+			filter[k] = v
+		}
+	}
+
+	// Merge with additional filters from opts
+	if opts.Filter != nil {
+		for k, v := range opts.Filter {
+			filter[k] = v
+		}
+	}
+
+	// Get the collection
+	dataCol := s.db.Collection("data_" + view.Collection)
+
+	// Create find options
+	findOpts := &types.FindOptions{}
+	
+	// Apply limit and skip from opts (for pagination)
+	if opts.Limit > 0 {
+		limit := int64(opts.Limit)
+		findOpts.Limit = &limit
+	}
+	if opts.Skip > 0 {
+		skip := int64(opts.Skip)
+		findOpts.Skip = &skip
+	}
+
+	// Execute the query
+	cursor, err := dataCol.Find(ctx, filter, findOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query view: %w", err)
+	}
+	defer cursor.Close(ctx)
+
+	// Decode results
+	var results []bson.M
+	for cursor.Next(ctx) {
+		var doc bson.M
+		if err := cursor.Decode(&doc); err != nil {
+			continue
+		}
+		results = append(results, doc)
+	}
+
+	if userID != primitive.NilObjectID {
+		s.logAccess(ctx, userID, viewName, nil, "execute", "allowed", fmt.Sprintf("queried %d documents", len(results)))
+	}
+
+	return results, nil
 }
 
 func (s *AdapterService) InsertDocument(ctx context.Context, mutation *models.DataMutation) (*models.Document, error) {
@@ -412,8 +705,8 @@ func (s *AdapterService) InsertDocument(ctx context.Context, mutation *models.Da
 		Collection: mutation.Collection,
 		Data:       mutation.Data,
 		CreatedBy:  mutation.UserID,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
 	}
 
 	// For PostgreSQL adapter, pass data fields at top level
@@ -472,7 +765,7 @@ func (s *AdapterService) UpdateDocument(ctx context.Context, mutation *models.Da
 		}
 	}
 	updateFields["updated_by"] = mutation.UserID.Hex()
-	updateFields["updated_at"] = time.Now()
+	updateFields["updated_at"] = time.Now().UTC()
 
 	update := map[string]interface{}{
 		"$set": updateFields,

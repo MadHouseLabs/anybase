@@ -157,8 +157,7 @@ func (h *MCPHandler) handleResourcesList(c *gin.Context, req MCPRequest) {
 		// Only fetch collections the access key has permission for
 		if hasAllCollections {
 			// Has wildcard permission - can list all collections
-			userID := primitive.NilObjectID
-			collections, err := h.collectionService.ListCollections(c.Request.Context(), userID)
+			collections, err := h.collectionService.ListCollections(c.Request.Context())
 			if err == nil {
 				for _, col := range collections {
 					// Include schema information in the resource
@@ -178,9 +177,8 @@ func (h *MCPHandler) handleResourcesList(c *gin.Context, req MCPRequest) {
 			}
 		} else if len(collectionPermMap) > 0 {
 			// Only fetch specific collections
-			userID := primitive.NilObjectID
 			for collName := range collectionPermMap {
-				col, err := h.collectionService.GetCollection(c.Request.Context(), userID, collName)
+				col, err := h.collectionService.GetCollection(c.Request.Context(), primitive.NilObjectID, collName)
 				if err == nil {
 					// Include schema information in the resource
 					schemaInfo := "No schema defined"
@@ -202,8 +200,7 @@ func (h *MCPHandler) handleResourcesList(c *gin.Context, req MCPRequest) {
 		// Only fetch views the access key has permission for
 		if hasAllViews {
 			// Has wildcard permission - can list all views
-			userID := primitive.NilObjectID
-			views, err := h.collectionService.ListViews(c.Request.Context(), userID)
+			views, err := h.collectionService.ListViews(c.Request.Context())
 			if err == nil {
 				for _, view := range views {
 					resources = append(resources, map[string]interface{}{
@@ -216,9 +213,8 @@ func (h *MCPHandler) handleResourcesList(c *gin.Context, req MCPRequest) {
 			}
 		} else if len(viewPermMap) > 0 {
 			// Only fetch specific views
-			userID := primitive.NilObjectID
 			for viewName := range viewPermMap {
-				view, err := h.collectionService.GetView(c.Request.Context(), userID, viewName)
+				view, err := h.collectionService.GetView(c.Request.Context(), viewName)
 				if err == nil {
 					resources = append(resources, map[string]interface{}{
 						"uri":         "anybase://view/" + viewName,
@@ -231,10 +227,10 @@ func (h *MCPHandler) handleResourcesList(c *gin.Context, req MCPRequest) {
 		}
 	} else {
 		// JWT auth - use user permissions
-		userID := getUserID(c)
+		// getUserID(c) would be used here if we needed user-specific filtering
 		
 		// List all accessible collections
-		collections, err := h.collectionService.ListCollections(c.Request.Context(), userID)
+		collections, err := h.collectionService.ListCollections(c.Request.Context())
 		if err == nil {
 			for _, col := range collections {
 				// Include schema information in the resource
@@ -254,7 +250,7 @@ func (h *MCPHandler) handleResourcesList(c *gin.Context, req MCPRequest) {
 		}
 		
 		// List all accessible views
-		views, err := h.collectionService.ListViews(c.Request.Context(), userID)
+		views, err := h.collectionService.ListViews(c.Request.Context())
 		if err == nil {
 			for _, view := range views {
 				resources = append(resources, map[string]interface{}{
@@ -352,7 +348,7 @@ func (h *MCPHandler) handleResourcesRead(c *gin.Context, req MCPRequest) {
 			"sampleData":  docs,
 		}
 	} else {
-		view, err := h.collectionService.GetView(c.Request.Context(), userID, resourceName)
+		view, err := h.collectionService.GetView(c.Request.Context(), resourceName)
 		if err != nil {
 			c.JSON(http.StatusOK, MCPResponse{
 				JSONRPC: "2.0",
@@ -403,9 +399,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 	authType, _ := c.Get("auth_type")
 	permissions, _ := c.Get("permissions")
 	
-	userID := getUserID(c)
 	if authType == "access_key" {
-		userID = primitive.NilObjectID
 		// For access keys, only show tools they have permission to use
 		perms := permissions.([]string)
 		
@@ -423,7 +417,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 				if resource == "collection" {
 					if name == "*" {
 						// Has wildcard permission - fetch all collections
-						collections, err := h.collectionService.ListCollections(c.Request.Context(), userID)
+						collections, err := h.collectionService.ListCollections(c.Request.Context())
 						if err == nil {
 							for _, col := range collections {
 								if collectionPerms[col.Name] == nil {
@@ -441,7 +435,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 				} else if resource == "view" {
 					if name == "*" {
 						// Has wildcard permission - fetch all views
-						views, err := h.collectionService.ListViews(c.Request.Context(), userID)
+						views, err := h.collectionService.ListViews(c.Request.Context())
 						if err == nil {
 							for _, view := range views {
 								if viewPerms[view.Name] == nil {
@@ -463,7 +457,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 		// Create specific tools for each collection
 		for collName, actions := range collectionPerms {
 			// Get collection details for schema
-			col, err := h.collectionService.GetCollection(c.Request.Context(), userID, collName)
+			col, err := h.collectionService.GetCollection(c.Request.Context(), primitive.NilObjectID, collName)
 			if err != nil {
 				continue
 			}
@@ -630,7 +624,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 		// Create specific tools for each view
 		for viewName, actions := range viewPerms {
 			// Get view details
-			view, err := h.collectionService.GetView(c.Request.Context(), userID, viewName)
+			view, err := h.collectionService.GetView(c.Request.Context(), viewName)
 			if err != nil {
 				continue
 			}
@@ -678,7 +672,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 		}
 	} else {
 		// JWT auth - show all available collections and views as specific tools
-		collections, err := h.collectionService.ListCollections(c.Request.Context(), userID)
+		collections, err := h.collectionService.ListCollections(c.Request.Context())
 		if err == nil {
 			for _, col := range collections {
 				// Build schema properties from collection schema
@@ -781,7 +775,7 @@ func (h *MCPHandler) handleToolsList(c *gin.Context, req MCPRequest) {
 		}
 		
 		// Add view tools
-		views, err := h.collectionService.ListViews(c.Request.Context(), userID)
+		views, err := h.collectionService.ListViews(c.Request.Context())
 		if err == nil {
 			for _, view := range views {
 				tools = append(tools, map[string]interface{}{

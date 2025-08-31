@@ -50,9 +50,6 @@ func main() {
 	// Indexes are created during database initialization
 	ctx := context.Background()
 
-	// Create compatibility wrapper for services that haven't been migrated yet
-	dbWrapper := database.WrapAdapter(dbAdapter)
-
 	// Initialize repositories and services
 	userRepo := user.NewRepository(dbAdapter)
 	authService := auth.NewService(userRepo, &cfg.Auth)
@@ -63,24 +60,10 @@ func main() {
 	}
 	rbacService := governance.NewRBACService(dbAdapter)
 	
-	// Use adapter-based collection service for non-MongoDB databases
-	var collectionService collection.Service
-	if database.IsUsingMongoDB() {
-		collectionService = collection.NewService(dbWrapper, rbacService)
-	} else {
-		collectionService = collection.NewAdapterService(dbAdapter, rbacService)
-	}
-	
+	// Use adapter-based services
+	collectionService := collection.NewAdapterService(dbAdapter, rbacService)
 	accessKeyRepo := accesskey.NewRepository(dbAdapter)
-	
-	// Settings service
-	var settingsService settings.Service
-	if database.IsUsingMongoDB() {
-		settingsService = settings.NewService(database.GetMongoDatabase())
-	} else {
-		// Use adapter-based settings service for PostgreSQL
-		settingsService = settings.NewAdapterService(dbAdapter)
-	}
+	settingsService := settings.NewAdapterService(dbAdapter)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(&cfg.Auth, rbacService)

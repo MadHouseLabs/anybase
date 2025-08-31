@@ -38,6 +38,13 @@ func (h *CollectionHandler) CreateCollection(c *gin.Context) {
 		return
 	}
 
+	// Validate schema before sending to service
+	if col.Schema != nil && col.Schema.Type == "" {
+		// Empty type string - reject with clear error
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Schema type cannot be empty. Use 'object', 'array', or other valid JSON Schema types"})
+		return
+	}
+
 	if err := h.collectionService.CreateCollection(c.Request.Context(), userID, &col); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -69,6 +76,19 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 	if err := c.ShouldBindJSON(&updates); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// If schema is being updated, validate it
+	if schemaUpdate, hasSchema := updates["schema"]; hasSchema && schemaUpdate != nil {
+		// Try to parse as CollectionSchema
+		schemaBytes, _ := json.Marshal(schemaUpdate)
+		var schema models.CollectionSchema
+		if err := json.Unmarshal(schemaBytes, &schema); err == nil {
+			if schema.Type == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Schema type cannot be empty. Use 'object', 'array', or other valid JSON Schema types"})
+				return
+			}
+		}
 	}
 
 	if err := h.collectionService.UpdateCollection(c.Request.Context(), userID, name, updates); err != nil {
@@ -120,8 +140,8 @@ func (h *CollectionHandler) ListCollections(c *gin.Context) {
 			return
 		}
 		
-		// For now, return all collections (in production, filter by specific permissions)
-		collections, err := h.collectionService.ListAllCollections(c.Request.Context())
+		// Return all collections (permissions are checked at operation level)
+		collections, err := h.collectionService.ListCollections(c.Request.Context())
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -138,7 +158,7 @@ func (h *CollectionHandler) ListCollections(c *gin.Context) {
 		return
 	}
 
-	collections, err := h.collectionService.ListCollections(c.Request.Context(), userID)
+	collections, err := h.collectionService.ListCollections(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -191,7 +211,7 @@ func (h *CollectionHandler) GetView(c *gin.Context) {
 	
 	name := c.Param("name")
 
-	view, err := h.collectionService.GetView(c.Request.Context(), userID, name)
+	view, err := h.collectionService.GetView(c.Request.Context(), name)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -340,7 +360,7 @@ func (h *CollectionHandler) ListViews(c *gin.Context) {
 		return
 	}
 
-	views, err := h.collectionService.ListViews(c.Request.Context(), userID)
+	views, err := h.collectionService.ListViews(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

@@ -2,7 +2,7 @@
 
 import { Badge } from "@/components/ui/badge";
 import { Database, MoreVertical, Trash2, Edit, Eye, Copy, Calendar, Filter, Hash, FileCode } from "lucide-react";
-import { format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { useRouter } from "next/navigation";
 import { CreateViewDialog } from "./view-client-components";
 import { ExecuteViewDialog } from "./execute-view-dialog";
@@ -172,7 +172,7 @@ export function ViewsTable({ views, collections }: ViewsTableProps) {
                 </td>
                 <td className="p-4 text-right">
                   <span className="text-sm text-muted-foreground">
-                    {view.created_at ? format(new Date(view.created_at), 'MMM d, yyyy') : '-'}
+                    {view.created_at ? formatDistanceToNow(new Date(view.created_at), { addSuffix: true }) : '-'}
                   </span>
                 </td>
                 <td className="p-4">

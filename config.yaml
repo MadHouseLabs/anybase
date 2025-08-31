@@ -7,16 +7,17 @@ server:
   shutdown_timeout: 10s
 
 database:
-  # For local development, use MongoDB
-  # For production, replace with AWS DocumentDB connection string
-  uri: "mongodb://localhost:27017"
+  # PostgreSQL configuration
+  type: "postgres"
+  host: "localhost"
+  port: 5432
   database: "anybase"
+  username: "karthik"
+  password: ""
+  ssl_mode: "disable"
   max_pool_size: 100
   min_pool_size: 10
   max_idle_time: 10m
-  heartbeat_interval: 10s
-  retry_writes: true
-  server_selection_timeout: 5s
 
 auth:
   # IMPORTANT: Change this in production

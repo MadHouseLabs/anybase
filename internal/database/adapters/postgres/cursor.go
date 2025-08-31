@@ -79,10 +79,16 @@ func (c *PostgresCursor) Decode(result interface{}) error {
 		}
 	} else if docPtr, ok := result.(*models.Document); ok {
 		// Handle Document type specifically
-		// Get the _id from the JSONB data
+		// Get the _id from the JSONB data and remember if it was invalid
+		var invalidID string
 		if idStr, ok := dataMap["_id"].(string); ok {
 			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
 				docPtr.ID = objID
+			} else {
+				// Generate a new ObjectID for invalid IDs
+				docPtr.ID = primitive.NewObjectID()
+				// Remember the invalid ID to add to data later
+				invalidID = idStr
 			}
 		}
 		
@@ -115,6 +121,14 @@ func (c *PostgresCursor) Decode(result interface{}) error {
 				}
 			}
 			docPtr.Data = cleanData
+		}
+		
+		// Add the original invalid ID if there was one
+		if invalidID != "" {
+			if docPtr.Data == nil {
+				docPtr.Data = make(map[string]interface{})
+			}
+			docPtr.Data["_original_id"] = invalidID
 		}
 		
 		// Set created_by and updated_by from column values
@@ -193,6 +207,34 @@ func (c *PostgresCursor) Decode(result interface{}) error {
 		}
 		if updatedAt.Valid {
 			colPtr.UpdatedAt = updatedAt.Time
+		}
+	} else if viewPtr, ok := result.(*models.View); ok {
+		// Handle View type
+		// Get the _id from the JSONB data
+		if idStr, ok := dataMap["_id"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
+				viewPtr.ID = objID
+			}
+		}
+		
+		// If we still don't have an ID, generate one
+		if viewPtr.ID.IsZero() {
+			viewPtr.ID = primitive.NewObjectID()
+		}
+		
+		// Get created_by from data
+		if cbStr, ok := dataMap["created_by"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(cbStr); err == nil {
+				viewPtr.CreatedBy = objID
+			}
+		}
+		
+		// Set timestamps from database columns
+		if createdAt.Valid {
+			viewPtr.CreatedAt = createdAt.Time
+		}
+		if updatedAt.Valid {
+			viewPtr.UpdatedAt = updatedAt.Time
 		}
 	} else if m, ok := result.(*map[string]interface{}); ok {
 		// Add system fields if result is a map
