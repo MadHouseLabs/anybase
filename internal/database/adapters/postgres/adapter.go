@@ -145,6 +145,7 @@ func (p *PostgresAdapter) initializeSchema(ctx context.Context) error {
 		"access_keys",
 		"audit_logs",
 		"settings",
+		"collections",  // Add collections table for metadata storage
 	}
 	
 	for _, collection := range systemCollections {
@@ -165,8 +166,8 @@ func (p *PostgresAdapter) ensureCollectionTable(ctx context.Context, name string
 		CREATE TABLE IF NOT EXISTS %s (
 			_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 			data JSONB NOT NULL DEFAULT '{}',
-			_created_by UUID,
-			_updated_by UUID,
+			_created_by TEXT,
+			_updated_by TEXT,
 			_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 			_version INTEGER DEFAULT 1,

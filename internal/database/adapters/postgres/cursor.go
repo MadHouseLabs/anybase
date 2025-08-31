@@ -167,6 +167,33 @@ func (c *PostgresCursor) Decode(result interface{}) error {
 		if updatedAt.Valid {
 			keyPtr.UpdatedAt = updatedAt.Time
 		}
+	} else if colPtr, ok := result.(*models.Collection); ok {
+		// Handle Collection type
+		// Get the _id from the JSONB data
+		if idStr, ok := dataMap["_id"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
+				colPtr.ID = objID
+			}
+		}
+		
+		// If we still don't have an ID, use a nil ID (shouldn't happen with valid data)
+		if colPtr.ID.IsZero() {
+			colPtr.ID = primitive.NilObjectID
+		}
+		
+		// Get created_by from data
+		if cbStr, ok := dataMap["created_by"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(cbStr); err == nil {
+				colPtr.CreatedBy = objID
+			}
+		}
+		
+		if createdAt.Valid {
+			colPtr.CreatedAt = createdAt.Time
+		}
+		if updatedAt.Valid {
+			colPtr.UpdatedAt = updatedAt.Time
+		}
 	} else if m, ok := result.(*map[string]interface{}); ok {
 		// Add system fields if result is a map
 		// Use the _id from JSONB data if it exists

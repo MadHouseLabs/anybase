@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -617,18 +618,41 @@ func (c *PostgresCollection) CountDocuments(ctx context.Context, filter map[stri
 
 // CreateIndex creates an index on the collection
 func (c *PostgresCollection) CreateIndex(ctx context.Context, index types.Index) error {
+	// Check if there are any keys to index
+	if len(index.Keys) == 0 {
+		return fmt.Errorf("no fields specified for index")
+	}
+	
 	// Build index creation query for JSONB fields
-	var indexParts []string
+	// We need to preserve field order for compound indexes
+	// Convert map to sorted slice for consistent ordering
+	type fieldOrder struct {
+		field     string
+		direction int
+	}
+	
+	var fields []fieldOrder
 	for field, direction := range index.Keys {
+		fields = append(fields, fieldOrder{field, direction})
+	}
+	
+	// Sort fields by name for consistent ordering
+	// This ensures compound indexes are created with predictable field order
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].field < fields[j].field
+	})
+	
+	var indexParts []string
+	for _, f := range fields {
 		// For JSONB fields, use the ->> operator to extract text
-		jsonPath := fmt.Sprintf("(data->>'%s')", field)
+		jsonPath := fmt.Sprintf("(data->>'%s')", f.field)
 		
-		order := "ASC"
-		if direction < 0 {
-			order = "DESC"
+		order := ""
+		if f.direction < 0 {
+			order = " DESC"
 		}
 		
-		indexParts = append(indexParts, fmt.Sprintf("%s %s", jsonPath, order))
+		indexParts = append(indexParts, fmt.Sprintf("%s%s", jsonPath, order))
 	}
 	
 	indexName := index.Name
@@ -636,12 +660,19 @@ func (c *PostgresCollection) CreateIndex(ctx context.Context, index types.Index)
 		indexName = fmt.Sprintf("idx_%s_%d", c.tableName, len(indexParts))
 	}
 	
+	// Use B-tree for unique indexes (GIN doesn't support unique)
+	// Use B-tree for regular indexes too for better performance on equality/range queries
+	indexType := "USING btree"
+	
+	// For full-text search or contains queries, we might want GIN
+	// But for now, stick with btree for all JSONB field indexes
+	
 	query := fmt.Sprintf("CREATE ")
 	if index.Unique {
 		query += "UNIQUE "
 	}
-	query += fmt.Sprintf("INDEX IF NOT EXISTS %s ON %s (%s)",
-		indexName, c.tableName, strings.Join(indexParts, ", "))
+	query += fmt.Sprintf("INDEX IF NOT EXISTS %s ON %s %s (%s)",
+		indexName, c.tableName, indexType, strings.Join(indexParts, ", "))
 	
 	_, err := c.db.ExecContext(ctx, query)
 	return err

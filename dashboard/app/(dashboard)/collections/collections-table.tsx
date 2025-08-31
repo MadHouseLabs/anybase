@@ -79,7 +79,7 @@ export function CollectionsTable({ collections }: CollectionsTableProps) {
           {collections.length > 0 ? (
             collections.map((collection: any, index: number) => (
               <tr 
-                key={collection.name} 
+                key={collection.id || `${collection.name}-${index}`} 
                 className={`border-b hover:bg-muted/30 transition-colors ${
                   index === collections.length - 1 ? 'border-b-0' : ''
                 }`}

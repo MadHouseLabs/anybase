@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/madhouselabs/anybase/internal/database/adapters/postgres"
 	"github.com/madhouselabs/anybase/internal/database/types"
 	"github.com/madhouselabs/anybase/internal/governance"
 	"github.com/madhouselabs/anybase/internal/validator"
@@ -52,6 +51,16 @@ func (s *AdapterService) CreateCollection(ctx context.Context, userID primitive.
 		}
 	}
 
+	// Check if collection already exists
+	collectionsCol := s.db.Collection("collections")
+	existingCount, err := collectionsCol.CountDocuments(ctx, map[string]interface{}{"name": collection.Name})
+	if err != nil {
+		return fmt.Errorf("failed to check existing collection: %w", err)
+	}
+	if existingCount > 0 {
+		return fmt.Errorf("collection '%s' already exists", collection.Name)
+	}
+
 	// Set metadata
 	collection.ID = primitive.NewObjectID()
 	collection.CreatedBy = userID
@@ -75,7 +84,7 @@ func (s *AdapterService) CreateCollection(ctx context.Context, userID primitive.
 	}
 
 	// Store collection metadata
-	collectionsCol := s.db.Collection("collections")
+	// collectionsCol already defined above
 	
 	// Convert collection to map for storage
 	collectionDoc := map[string]interface{}{
@@ -407,16 +416,15 @@ func (s *AdapterService) InsertDocument(ctx context.Context, mutation *models.Da
 		UpdatedAt:  time.Now(),
 	}
 
-	// Convert to map for storage
-	docMap := map[string]interface{}{
-		"_id":        doc.ID.Hex(),
-		"collection": doc.Collection,
-		"data":       doc.Data,
-		"created_by": mutation.UserID.Hex(),
-		"created_at": doc.CreatedAt,
-		"updated_at": doc.UpdatedAt,
+	// For PostgreSQL adapter, pass data fields at top level
+	// The adapter will handle extracting metadata properly
+	docMap := make(map[string]interface{})
+	for k, v := range doc.Data {
+		docMap[k] = v
 	}
-
+	docMap["_id"] = doc.ID.Hex()
+	docMap["created_by"] = mutation.UserID.Hex()
+	
 	// Insert into collection
 	dataCol := s.db.Collection("data_" + mutation.Collection)
 	_, err := dataCol.InsertOne(ctx, docMap)
@@ -649,64 +657,74 @@ func (s *AdapterService) ValidateAgainstSchema(ctx context.Context, collectionNa
 }
 
 func (s *AdapterService) ListIndexes(ctx context.Context, collectionName string) ([]interface{}, error) {
-	// For PostgreSQL, we'll query pg_indexes to get index information
-	// This is a simplified implementation
-	tableName := "data_" + collectionName
+	// Get the data collection
+	dataCol := s.db.Collection("data_" + collectionName)
 	
-	// Get the underlying database connection
-	if pgAdapter, ok := s.db.(*postgres.PostgresAdapter); ok {
-		indexes, err := pgAdapter.GetIndexes(ctx, tableName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to list indexes: %w", err)
-		}
-		
-		// Convert to interface slice
-		var result []interface{}
-		for _, idx := range indexes {
-			result = append(result, idx)
-		}
-		return result, nil
+	// List indexes using the collection's ListIndexes method
+	indexes, err := dataCol.ListIndexes(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list indexes: %w", err)
 	}
-
-	return nil, fmt.Errorf("database adapter does not support index listing")
+	
+	// Convert to interface slice
+	var result []interface{}
+	for _, idx := range indexes {
+		result = append(result, idx)
+	}
+	return result, nil
 }
 
 func (s *AdapterService) CreateIndex(ctx context.Context, collectionName string, indexName string, keys map[string]interface{}, options map[string]interface{}) error {
-	// For PostgreSQL, create JSONB indexes
-	tableName := "data_" + collectionName
+	// Get the data collection
+	dataCol := s.db.Collection("data_" + collectionName)
 	
-	// Build index fields
-	var indexFields []string
-	for field := range keys {
-		// Create GIN index on JSONB field for efficient querying
-		indexFields = append(indexFields, fmt.Sprintf("(data->'%s')", field))
+	// Build types.Index structure
+	idx := types.Index{
+		Name:   indexName,
+		Keys:   make(map[string]int),
+		Unique: false,
+		Sparse: false,
 	}
-
-	if len(indexFields) == 0 {
-		return fmt.Errorf("no fields specified for index")
+	
+	// Convert keys to proper format
+	for field, order := range keys {
+		if orderInt, ok := order.(int); ok {
+			idx.Keys[field] = orderInt
+		} else if orderFloat, ok := order.(float64); ok {
+			idx.Keys[field] = int(orderFloat)
+		} else {
+			idx.Keys[field] = 1 // Default to ascending
+		}
 	}
-
-	// Check if it's a unique index
-	unique := false
+	
+	// Check options
 	if options != nil {
 		if u, ok := options["unique"].(bool); ok {
-			unique = u
+			idx.Unique = u
+		}
+		if s, ok := options["sparse"].(bool); ok {
+			idx.Sparse = s
 		}
 	}
 
-	if pgAdapter, ok := s.db.(*postgres.PostgresAdapter); ok {
-		return pgAdapter.CreateIndex(ctx, tableName, indexName, indexFields, unique)
+	// Create the index using the collection's CreateIndex method
+	if err := dataCol.CreateIndex(ctx, idx); err != nil {
+		return fmt.Errorf("failed to create index: %w", err)
 	}
 
-	return fmt.Errorf("database adapter does not support index creation")
+	return nil
 }
 
 func (s *AdapterService) DeleteIndex(ctx context.Context, collectionName string, indexName string) error {
-	if pgAdapter, ok := s.db.(*postgres.PostgresAdapter); ok {
-		return pgAdapter.DropIndex(ctx, indexName)
+	// Get the data collection
+	dataCol := s.db.Collection("data_" + collectionName)
+	
+	// Drop the index using the collection's DropIndex method
+	if err := dataCol.DropIndex(ctx, indexName); err != nil {
+		return fmt.Errorf("failed to drop index: %w", err)
 	}
 
-	return fmt.Errorf("database adapter does not support index deletion")
+	return nil
 }
 
 // CountDocuments counts documents in a collection with permissions check
