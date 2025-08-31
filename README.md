@@ -33,7 +33,7 @@
 ### Prerequisites
 - Go 1.22 or higher
 - Node.js 20+ and pnpm
-- MongoDB or AWS DocumentDB
+- Database: MongoDB, AWS DocumentDB, or PostgreSQL
 - Docker (optional)
 
 ### Installation
@@ -103,14 +103,37 @@ anybase/
 
 ## 🔧 Configuration
 
+### Database Configuration
+
+AnyBase supports multiple database backends. Choose one:
+
+#### MongoDB Configuration
+
+```env
+# MongoDB/DocumentDB Connection
+ANYBASE_DATABASE_TYPE=mongodb
+ANYBASE_DATABASE_URI=mongodb://localhost:27017
+ANYBASE_DATABASE_DATABASE=anybase
+```
+
+#### PostgreSQL Configuration
+
+```env
+# PostgreSQL Connection
+ANYBASE_DATABASE_TYPE=postgres
+ANYBASE_DATABASE_URI=postgres://username@localhost/anybase?sslmode=disable
+ANYBASE_DATABASE_DATABASE=anybase
+```
+
 ### Environment Variables
 
 Create a `.env` file in the root directory:
 
 ```env
-# MongoDB/DocumentDB Connection
-MONGODB_URI=mongodb://localhost:27017
-DB_NAME=anybase
+# Database Configuration (see above for database-specific settings)
+ANYBASE_DATABASE_TYPE=mongodb  # or postgres
+ANYBASE_DATABASE_URI=mongodb://localhost:27017
+ANYBASE_DATABASE_DATABASE=anybase
 
 # JWT Configuration
 JWT_SECRET=your-secret-key-here
@@ -122,13 +145,26 @@ PORT=8080
 HOST=0.0.0.0
 MODE=development
 
+# Initial Admin User (created on first startup)
+INIT_ADMIN_EMAIL=admin@anybase.local
+INIT_ADMIN_PASSWORD=admin123  # Change this immediately after first login!
+
 # Dashboard Configuration
 NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-### MongoDB Indexes
+### Database Indexes
 
-AnyBase automatically creates necessary indexes on startup. For production environments, ensure your MongoDB instance has sufficient resources for index creation.
+AnyBase automatically creates necessary indexes on startup:
+- **MongoDB**: Native MongoDB indexes with compound and unique constraints
+- **PostgreSQL**: B-tree and GIN indexes on JSONB fields for optimal query performance
+
+## 📖 API Documentation
+
+Complete API documentation is available in the [OpenAPI specification](./openapi.yaml). You can:
+- Import it into Postman or Insomnia for testing
+- Use it to generate client SDKs
+- View it with Swagger UI or ReDoc
 
 ## 🔌 API Usage
 
