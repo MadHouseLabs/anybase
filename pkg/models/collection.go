@@ -7,6 +7,19 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// VectorField represents a vector field configuration in a collection
+type VectorField struct {
+	Name        string  `bson:"name" json:"name" validate:"required,min=1,max=100"`
+	Dimensions  int     `bson:"dimensions" json:"dimensions" validate:"required,min=1,max=65536"`
+	Model       string  `bson:"model,omitempty" json:"model,omitempty"`           // e.g., "text-embedding-ada-002"
+	SourceField string  `bson:"source_field,omitempty" json:"source_field,omitempty"` // Field to generate embeddings from
+	IndexType   string  `bson:"index_type,omitempty" json:"index_type,omitempty"`   // ivfflat, hnsw
+	Metric      string  `bson:"metric,omitempty" json:"metric,omitempty"`           // cosine, l2, inner_product
+	ListSize    int     `bson:"list_size,omitempty" json:"list_size,omitempty"`     // For ivfflat index
+	M           int     `bson:"m,omitempty" json:"m,omitempty"`                     // For hnsw index
+	EfConstruct int     `bson:"ef_construct,omitempty" json:"ef_construct,omitempty"` // For hnsw index
+}
+
 // Collection represents a data collection in the system
 type Collection struct {
 	ID            primitive.ObjectID     `bson:"_id,omitempty" json:"id"`
@@ -14,6 +27,7 @@ type Collection struct {
 	Description   string                 `bson:"description,omitempty" json:"description,omitempty"`
 	Schema        *CollectionSchema      `bson:"schema,omitempty" json:"schema,omitempty"`
 	Indexes       []CollectionIndex      `bson:"indexes,omitempty" json:"indexes,omitempty"`
+	VectorFields  []VectorField          `bson:"vector_fields,omitempty" json:"vector_fields,omitempty"`
 	Permissions   CollectionPermissions  `bson:"permissions" json:"permissions"`
 	Settings      CollectionSettings     `bson:"settings" json:"settings"`
 	Metadata      map[string]interface{} `bson:"metadata,omitempty" json:"metadata,omitempty"`

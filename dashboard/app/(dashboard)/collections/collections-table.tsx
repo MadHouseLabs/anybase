@@ -3,6 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Clock, Shield, Activity, Database, MoreVertical, Trash2, Edit, Eye } from "lucide-react";
 import { format } from 'date-fns';
+import { formatLocalDateOnly } from '@/lib/date-utils';
 import { useRouter } from "next/navigation";
 import { CreateCollectionButton } from "./collection-client-components";
 import {
@@ -126,7 +127,7 @@ export function CollectionsTable({ collections }: CollectionsTableProps) {
                 </td>
                 <td className="p-4 text-right cursor-pointer" onClick={() => router.push(`/collections/${collection.name}`)}>
                   <span className="text-sm text-muted-foreground">
-                    {collection.created_at ? format(new Date(collection.created_at), 'MMM d, yyyy') : '-'}
+                    {formatLocalDateOnly(collection.created_at) || '-'}
                   </span>
                 </td>
                 <td className="p-4">

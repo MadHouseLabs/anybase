@@ -173,6 +173,8 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 
 	// Collection & View endpoints (support both JWT and Access Key auth)
 	collectionHandler := v1.NewCollectionHandler(collectionService)
+	vectorHandler := v1.NewVectorHandler(collectionService)
+	
 	collectionsGroup := api.Group("/collections")
 	collectionsGroup.Use(accessKeyMiddleware.Authenticate()) // Try access key first
 	collectionsGroup.Use(authMiddleware.RequireAuth())
@@ -187,6 +189,11 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 		collectionsGroup.GET("/:name/indexes", collectionHandler.ListIndexes)
 		collectionsGroup.POST("/:name/indexes", collectionHandler.CreateIndex)
 		collectionsGroup.DELETE("/:name/indexes/:index", collectionHandler.DeleteIndex)
+		
+		// Vector field management
+		collectionsGroup.GET("/:name/vector-fields", vectorHandler.ListVectorFields)
+		collectionsGroup.POST("/:name/vector-fields", vectorHandler.AddVectorField)
+		collectionsGroup.DELETE("/:name/vector-fields/:field", vectorHandler.RemoveVectorField)
 	}
 
 	// View endpoints (support both JWT and Access Key auth)
@@ -212,6 +219,10 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 		dataGroup.GET("/:collection/:id", collectionHandler.GetDocument)
 		dataGroup.PUT("/:collection/:id", collectionHandler.UpdateDocument)
 		dataGroup.DELETE("/:collection/:id", collectionHandler.DeleteDocument)
+		
+		// Vector search endpoints
+		dataGroup.POST("/:collection/search", vectorHandler.VectorSearch)
+		dataGroup.POST("/:collection/hybrid-search", vectorHandler.HybridSearch)
 	}
 
 

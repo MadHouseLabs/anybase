@@ -85,6 +85,19 @@ export const collectionsApi = {
     const response = await api.delete(`/collections/${collectionName}/indexes/${indexName}`);
     return response.data;
   },
+  // Vector field methods
+  getVectorFields: async (name: string) => {
+    const response = await api.get(`/collections/${name}/vector-fields`);
+    return response.data;
+  },
+  addVectorField: async (name: string, data: any) => {
+    const response = await api.post(`/collections/${name}/vector-fields`, data);
+    return response.data;
+  },
+  removeVectorField: async (collectionName: string, fieldName: string) => {
+    const response = await api.delete(`/collections/${collectionName}/vector-fields/${fieldName}`);
+    return response.data;
+  },
 };
 
 // Data APIs

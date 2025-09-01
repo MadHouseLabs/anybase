@@ -17,7 +17,7 @@ import { collectionsApi, documentsApi } from "@/lib/api"
 import { 
   ArrowLeft, Plus, Database, Trash2, Edit2, Save, X, FileJson, 
   Key, Settings, Search, Copy, CheckCircle, Info, Code, 
-  Calendar, Hash, MoreVertical, ExternalLink, Activity, Edit, FileCode
+  Calendar, Hash, MoreVertical, ExternalLink, Activity, Edit, FileCode, Layers
 } from "lucide-react"
 import {
   Breadcrumb,
@@ -39,6 +39,8 @@ import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { SchemaEditor } from "@/components/schema-editor"
 import { validateDocument, type ValidationError } from "@/lib/schema-validator"
+import { VectorFieldsManager } from "@/components/vector-fields-manager"
+import { formatLocalDateOnly, formatLocalDateTime } from "@/lib/date-utils"
 
 export default function CollectionDetailPage() {
   const params = useParams()
@@ -535,7 +537,7 @@ export default function CollectionDetailPage() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">Created:</span>
               <span className="font-semibold">
-                {collection.created_at ? new Date(collection.created_at).toLocaleDateString() : "N/A"}
+                {formatLocalDateOnly(collection.created_at)}
               </span>
             </div>
             <Separator orientation="vertical" className="h-4" />
@@ -551,7 +553,7 @@ export default function CollectionDetailPage() {
       {/* Content */}
       <div className="flex-1 container mx-auto px-6 py-6 max-w-7xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full max-w-[500px] grid-cols-4">
+          <TabsList className="grid w-full max-w-[600px] grid-cols-5">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileJson className="h-4 w-4" />
               Documents
@@ -563,6 +565,10 @@ export default function CollectionDetailPage() {
             <TabsTrigger value="indexes" className="flex items-center gap-2">
               <Key className="h-4 w-4" />
               Indexes
+            </TabsTrigger>
+            <TabsTrigger value="vectors" className="flex items-center gap-2">
+              <Layers className="h-4 w-4" />
+              Vectors
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -644,7 +650,7 @@ export default function CollectionDetailPage() {
                           </TableCell>
                           <TableCell>
                             <span className="text-sm text-muted-foreground">
-                              {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : "N/A"}
+                              {formatLocalDateTime(doc.created_at)}
                             </span>
                           </TableCell>
                           <TableCell className="text-right">
@@ -893,6 +899,16 @@ export default function CollectionDetailPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="vectors" className="flex-1 mt-6">
+            <VectorFieldsManager 
+              collectionName={collectionName} 
+              onFieldsUpdate={() => {
+                // Optionally reload collection data
+                loadCollection()
+              }}
+            />
+          </TabsContent>
+
           <TabsContent value="settings" className="flex-1 mt-6">
             <div className="space-y-6">
               <div>
@@ -1043,7 +1059,7 @@ export default function CollectionDetailPage() {
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Created</span>
                             <span className="font-medium">
-                              {collection.created_at ? new Date(collection.created_at).toLocaleDateString() : "N/A"}
+                              {formatLocalDateOnly(collection.created_at)}
                             </span>
                           </div>
                           <div className="flex justify-between">

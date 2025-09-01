@@ -21,6 +21,15 @@ type PostgresCollection struct {
 	db        *sql.DB
 	name      string
 	tableName string
+	vectorOps *VectorOperations
+}
+
+// GetVectorOperations returns the vector operations handler for this collection
+func (c *PostgresCollection) GetVectorOperations() *VectorOperations {
+	if c.vectorOps == nil {
+		c.vectorOps = NewVectorOperations(c.db, c.tableName)
+	}
+	return c.vectorOps
 }
 
 // InsertOne inserts a single document
@@ -76,6 +85,20 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 		}
 	}
 	
+	// Extract vectors if present
+	vectors := make(map[string][]float32)
+	if vecData, ok := document["_vectors"]; ok {
+		if vecMap, ok := vecData.(map[string]interface{}); ok {
+			for fieldName, vecValue := range vecMap {
+				if vec, ok := convertToFloat32Array(vecValue); ok {
+					vectors[fieldName] = vec
+				}
+			}
+		}
+		// Remove vectors from document data
+		delete(document, "_vectors")
+	}
+	
 	// Create a clean data object with only actual data fields
 	dataOnly := make(map[string]interface{})
 	for k, v := range document {
@@ -88,7 +111,7 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 		} else if k != "_id" && k != "collection" && k != "created_by" && 
 		          k != "updated_by" && k != "created_at" && k != "updated_at" && 
 		          k != "_created_at" && k != "_updated_at" && k != "_version" && 
-		          k != "_deleted_at" {
+		          k != "_deleted_at" && k != "_vectors" {
 			// Include non-metadata fields
 			dataOnly[k] = v
 		}
@@ -115,14 +138,28 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 		return nil, fmt.Errorf("failed to marshal document: %w", err)
 	}
 	
+	// Build dynamic query with vector columns if present
+	columns := []string{"_id", "data", "_created_by", "_updated_by", "_created_at", "_updated_at"}
+	placeholders := []string{"$1", "$2", "$3", "$4", "CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP"}
+	args := []interface{}{id, data, createdBy, updatedBy}
+	
+	// Add vector columns
+	paramIndex := 5
+	for fieldName, vector := range vectors {
+		columns = append(columns, fmt.Sprintf("vec_%s", fieldName))
+		placeholders = append(placeholders, fmt.Sprintf("$%d::vector", paramIndex))
+		args = append(args, c.GetVectorOperations().vectorToString(vector))
+		paramIndex++
+	}
+	
 	query := fmt.Sprintf(`
-		INSERT INTO %s (_id, data, _created_by, _updated_by, _created_at, _updated_at)
-		VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		INSERT INTO %s (%s)
+		VALUES (%s)
 		RETURNING _id
-	`, c.tableName)
+	`, c.tableName, strings.Join(columns, ", "), strings.Join(placeholders, ", "))
 	
 	var returnedID uuid.UUID
-	err = c.db.QueryRowContext(ctx, query, id, data, createdBy, updatedBy).Scan(&returnedID)
+	err = c.db.QueryRowContext(ctx, query, args...).Scan(&returnedID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert document: %w", err)
 	}
@@ -1005,4 +1042,35 @@ func (c *PostgresCollection) buildOrderBy(sort map[string]int) string {
 	}
 	
 	return strings.Join(parts, ", ")
+}
+
+// convertToFloat32Array converts various input types to []float32
+func convertToFloat32Array(v interface{}) ([]float32, bool) {
+	switch vec := v.(type) {
+	case []float32:
+		return vec, true
+	case []float64:
+		result := make([]float32, len(vec))
+		for i, val := range vec {
+			result[i] = float32(val)
+		}
+		return result, true
+	case []interface{}:
+		result := make([]float32, len(vec))
+		for i, val := range vec {
+			switch num := val.(type) {
+			case float64:
+				result[i] = float32(num)
+			case float32:
+				result[i] = num
+			case int:
+				result[i] = float32(num)
+			default:
+				return nil, false
+			}
+		}
+		return result, true
+	default:
+		return nil, false
+	}
 }

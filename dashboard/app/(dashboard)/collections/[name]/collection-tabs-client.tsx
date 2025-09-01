@@ -15,7 +15,7 @@ import {
   FileJson, Key, Settings, FileCode, Search, Plus, Copy,
   MoreHorizontal, Eye, Edit, Trash2, Filter, Download,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  Info, Shield, Clock, Activity, Database, Layers
+  Info, Shield, Clock, Activity, Database, Layers, Cpu
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -27,6 +27,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { format } from 'date-fns';
 import { documentsApi, collectionsApi } from "@/lib/api";
+import { VectorFieldsManager } from "@/components/vector-fields-manager";
+import { formatLocalDateTime, formatLocalDate } from "@/lib/date-utils";
 
 interface CollectionTabsProps {
   collectionName: string;
@@ -297,6 +299,7 @@ export function CollectionTabs({
     { value: "documents", label: "Documents", icon: FileJson, count: totalDocuments },
     { value: "schema", label: "Schema", icon: FileCode },
     { value: "indexes", label: "Indexes", icon: Key, count: indexes.length },
+    { value: "vectors", label: "Vector Fields", icon: Layers },
     { value: "settings", label: "Settings", icon: Settings },
   ];
 
@@ -433,12 +436,12 @@ export function CollectionTabs({
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
-                          {doc.created_at ? format(new Date(doc.created_at), 'MMM d, HH:mm') : "-"}
+                          {formatLocalDateTime(doc.created_at)}
                         </span>
                       </TableCell>
                       <TableCell>
                         <span className="text-sm text-muted-foreground">
-                          {doc.updated_at ? format(new Date(doc.updated_at), 'MMM d, HH:mm') : "-"}
+                          {formatLocalDateTime(doc.updated_at)}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
@@ -679,6 +682,15 @@ export function CollectionTabs({
         </Card>
       </TabsContent>
 
+      <TabsContent value="vectors" className="space-y-4 mt-6">
+        <VectorFieldsManager 
+          collectionName={collectionName}
+          onFieldsUpdate={() => {
+            // Optionally refresh collection data
+          }}
+        />
+      </TabsContent>
+
       <TabsContent value="settings" className="space-y-4 mt-6">
         <div className="grid gap-4">
           <Card className="rounded-none shadow-none">
@@ -754,13 +766,13 @@ export function CollectionTabs({
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-sm text-muted-foreground">Created</dt>
                   <dd className="text-sm font-medium">
-                    {collection.created_at ? format(new Date(collection.created_at), 'PPP') : "N/A"}
+                    {formatLocalDate(collection.created_at)}
                   </dd>
                 </div>
                 <div className="flex justify-between py-2 border-b">
                   <dt className="text-sm text-muted-foreground">Last Modified</dt>
                   <dd className="text-sm font-medium">
-                    {collection.updated_at ? format(new Date(collection.updated_at), 'PPP') : "N/A"}
+                    {formatLocalDate(collection.updated_at)}
                   </dd>
                 </div>
                 <div className="flex justify-between py-2">

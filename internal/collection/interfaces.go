@@ -41,6 +41,15 @@ type Service interface {
 	// Schema validation
 	ValidateAgainstSchema(ctx context.Context, collectionName string, document interface{}) error
 	
+	// Vector field management
+	AddVectorField(ctx context.Context, userID primitive.ObjectID, collectionName string, field models.VectorField) error
+	RemoveVectorField(ctx context.Context, userID primitive.ObjectID, collectionName string, fieldName string) error
+	ListVectorFields(ctx context.Context, collectionName string) ([]models.VectorField, error)
+	
+	// Vector search operations
+	VectorSearch(ctx context.Context, userID primitive.ObjectID, collectionName string, opts VectorSearchOptions) ([]bson.M, error)
+	HybridSearch(ctx context.Context, userID primitive.ObjectID, collectionName string, opts HybridSearchOptions) ([]bson.M, error)
+	
 	// Permissions
 	CanRead(ctx context.Context, userID primitive.ObjectID, collection string) (bool, error)
 	CanWrite(ctx context.Context, userID primitive.ObjectID, collection string) (bool, error)
@@ -64,4 +73,25 @@ type QueryResult struct {
 	Total     int64    `json:"total"`
 	Page      int      `json:"page"`
 	PageSize  int      `json:"pageSize"`
+}
+
+// VectorSearchOptions defines options for vector similarity search
+type VectorSearchOptions struct {
+	VectorField  string                 `json:"vector_field"`
+	QueryVector  []float32              `json:"query_vector"`
+	TopK         int                    `json:"top_k"`
+	Filter       map[string]interface{} `json:"filter,omitempty"`
+	Metric       string                 `json:"metric,omitempty"` // cosine, l2, inner_product
+	IncludeScore bool                   `json:"include_score,omitempty"`
+}
+
+// HybridSearchOptions defines options for hybrid text and vector search
+type HybridSearchOptions struct {
+	TextQuery    string                 `json:"text_query"`
+	VectorField  string                 `json:"vector_field"`
+	QueryVector  []float32              `json:"query_vector"`
+	TopK         int                    `json:"top_k"`
+	Alpha        float32                `json:"alpha"` // Weight between text (0) and vector (1) search
+	Filter       map[string]interface{} `json:"filter,omitempty"`
+	IncludeScore bool                   `json:"include_score,omitempty"`
 }
