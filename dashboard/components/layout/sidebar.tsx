@@ -67,6 +67,11 @@ export function Sidebar({ className }: SidebarProps) {
 
   const bottomRoutes = [
     {
+      label: "Integrations",
+      iconName: "plug",
+      href: "/integrations",
+    },
+    {
       label: "API Docs",
       iconName: "book-open",
       href: "/api-docs",

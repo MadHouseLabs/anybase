@@ -72,20 +72,20 @@ export function SettingsTabs({ initialUserSettings, initialSystemSettings, userR
 
   return (
     <Tabs defaultValue="user" className="space-y-4">
-      <TabsList>
-        <TabsTrigger value="user" className="flex items-center gap-2">
-          <User className="h-4 w-4" />
-          User Settings
-        </TabsTrigger>
-        {(userRole === "admin" || userRole === "developer") && (
-          <TabsTrigger value="system" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            System Settings
+        <TabsList>
+          <TabsTrigger value="user" className="flex items-center gap-2">
+            <User className="h-4 w-4" />
+            User Settings
           </TabsTrigger>
-        )}
-      </TabsList>
+          {(userRole === "admin" || userRole === "developer") && (
+            <TabsTrigger value="system" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              System Settings
+            </TabsTrigger>
+          )}
+        </TabsList>
 
-      <TabsContent value="user" className="space-y-4">
+        <TabsContent value="user" className="space-y-4">
         <Card className="rounded-none shadow-none">
           <CardHeader>
             <CardTitle>Appearance</CardTitle>

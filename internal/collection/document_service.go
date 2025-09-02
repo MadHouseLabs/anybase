@@ -13,14 +13,18 @@ import (
 
 // InsertDocument inserts a document with governance checks
 func (s *AdapterService) InsertDocument(ctx context.Context, mutation *models.DataMutation) (*models.Document, error) {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, mutation.UserID, fmt.Sprintf("collection:%s", mutation.Collection), "write")
-	if err != nil {
-		return nil, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		s.logAccess(ctx, mutation.UserID, mutation.Collection, nil, "insert", "denied", "insufficient permissions")
-		return nil, fmt.Errorf("insufficient permissions to insert document")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, mutation.UserID, fmt.Sprintf("collection:%s", mutation.Collection), "write")
+		if err != nil {
+			return nil, fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, mutation.UserID, mutation.Collection, nil, "insert", "denied", "insufficient permissions")
+			return nil, fmt.Errorf("insufficient permissions to insert document")
+		}
 	}
 
 	// Get collection to check if it exists
@@ -73,14 +77,18 @@ func (s *AdapterService) InsertDocument(ctx context.Context, mutation *models.Da
 
 // UpdateDocument updates a document with governance checks
 func (s *AdapterService) UpdateDocument(ctx context.Context, mutation *models.DataMutation) error {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, mutation.UserID, fmt.Sprintf("collection:%s", mutation.Collection), "update")
-	if err != nil {
-		return fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		s.logAccess(ctx, mutation.UserID, mutation.Collection, mutation.DocumentID, "update", "denied", "insufficient permissions")
-		return fmt.Errorf("insufficient permissions to update document")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, mutation.UserID, fmt.Sprintf("collection:%s", mutation.Collection), "update")
+		if err != nil {
+			return fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, mutation.UserID, mutation.Collection, mutation.DocumentID, "update", "denied", "insufficient permissions")
+			return fmt.Errorf("insufficient permissions to update document")
+		}
 	}
 
 	// Get collection to check if it exists
@@ -131,14 +139,18 @@ func (s *AdapterService) UpdateDocument(ctx context.Context, mutation *models.Da
 
 // DeleteDocument deletes a document with governance checks
 func (s *AdapterService) DeleteDocument(ctx context.Context, mutation *models.DataMutation) error {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, mutation.UserID, fmt.Sprintf("collection:%s", mutation.Collection), "delete")
-	if err != nil {
-		return fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		s.logAccess(ctx, mutation.UserID, mutation.Collection, mutation.DocumentID, "delete", "denied", "insufficient permissions")
-		return fmt.Errorf("insufficient permissions to delete document")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, mutation.UserID, fmt.Sprintf("collection:%s", mutation.Collection), "delete")
+		if err != nil {
+			return fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, mutation.UserID, mutation.Collection, mutation.DocumentID, "delete", "denied", "insufficient permissions")
+			return fmt.Errorf("insufficient permissions to delete document")
+		}
 	}
 
 	// Get the data collection
@@ -171,14 +183,18 @@ func (s *AdapterService) DeleteDocument(ctx context.Context, mutation *models.Da
 
 // QueryDocuments queries documents with governance checks
 func (s *AdapterService) QueryDocuments(ctx context.Context, query *models.DataQuery) ([]models.Document, error) {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, query.UserID, fmt.Sprintf("collection:%s", query.Collection), "read")
-	if err != nil {
-		return nil, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		s.logAccess(ctx, query.UserID, query.Collection, nil, "query", "denied", "insufficient permissions")
-		return nil, fmt.Errorf("insufficient permissions to query collection")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, query.UserID, fmt.Sprintf("collection:%s", query.Collection), "read")
+		if err != nil {
+			return nil, fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, query.UserID, query.Collection, nil, "query", "denied", "insufficient permissions")
+			return nil, fmt.Errorf("insufficient permissions to query collection")
+		}
 	}
 
 	// Get the data collection
@@ -217,49 +233,13 @@ func (s *AdapterService) QueryDocuments(ctx context.Context, query *models.DataQ
 
 	var documents []models.Document
 	for cursor.Next(ctx) {
-		var doc bson.M
-		if err := cursor.Decode(&doc); err != nil {
+		var document models.Document
+		if err := cursor.Decode(&document); err != nil {
 			continue
 		}
 
-		// Convert to Document model
-		document := models.Document{
-			Collection: query.Collection,
-		}
-
-		// Extract metadata fields
-		if id, ok := doc["_id"].(string); ok {
-			if objID, err := primitive.ObjectIDFromHex(id); err == nil {
-				document.ID = objID
-			}
-		}
-
-		if data, ok := doc["data"].(map[string]interface{}); ok {
-			document.Data = data
-		} else if data, ok := doc["data"]; ok {
-			// If it's not a map, store as-is
-			document.Data = map[string]interface{}{"value": data}
-		}
-
-		if createdBy, ok := doc["_created_by"].(string); ok {
-			if objID, err := primitive.ObjectIDFromHex(createdBy); err == nil {
-				document.CreatedBy = objID
-			}
-		}
-
-		if createdAt, ok := doc["_created_at"].(time.Time); ok {
-			document.CreatedAt = createdAt
-		}
-
-		if updatedAt, ok := doc["_updated_at"].(time.Time); ok {
-			document.UpdatedAt = updatedAt
-		}
-
-		if version, ok := doc["_version"].(int32); ok {
-			document.Version = int(version)
-		} else if version, ok := doc["_version"].(int64); ok {
-			document.Version = int(version)
-		}
+		// Set the collection name
+		document.Collection = query.Collection
 
 		documents = append(documents, document)
 	}
@@ -270,14 +250,18 @@ func (s *AdapterService) QueryDocuments(ctx context.Context, query *models.DataQ
 
 // GetDocument retrieves a single document with governance checks
 func (s *AdapterService) GetDocument(ctx context.Context, userID primitive.ObjectID, collection string, docID primitive.ObjectID) (*models.Document, error) {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("collection:%s", collection), "read")
-	if err != nil {
-		return nil, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		s.logAccess(ctx, userID, collection, docID, "read", "denied", "insufficient permissions")
-		return nil, fmt.Errorf("insufficient permissions to read document")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("collection:%s", collection), "read")
+		if err != nil {
+			return nil, fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, userID, collection, docID, "read", "denied", "insufficient permissions")
+			return nil, fmt.Errorf("insufficient permissions to read document")
+		}
 	}
 
 	// Get the data collection
@@ -290,7 +274,7 @@ func (s *AdapterService) GetDocument(ctx context.Context, userID primitive.Objec
 	}
 
 	var doc bson.M
-	err = dataCol.FindOne(ctx, filter, &doc)
+	err := dataCol.FindOne(ctx, filter, &doc)
 	if err != nil {
 		if err == types.ErrNoDocuments {
 			return nil, fmt.Errorf("document not found")
@@ -337,13 +321,17 @@ func (s *AdapterService) GetDocument(ctx context.Context, userID primitive.Objec
 
 // CountDocuments counts documents in a collection with governance checks
 func (s *AdapterService) CountDocuments(ctx context.Context, userID primitive.ObjectID, collection string, filter map[string]interface{}) (int, error) {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("collection:%s", collection), "read")
-	if err != nil {
-		return 0, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		return 0, fmt.Errorf("insufficient permissions to read collection")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("collection:%s", collection), "read")
+		if err != nil {
+			return 0, fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			return 0, fmt.Errorf("insufficient permissions to read collection")
+		}
 	}
 
 	// Get the data collection

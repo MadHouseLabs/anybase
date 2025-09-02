@@ -71,6 +71,45 @@ func (s *AdapterService) AddVectorField(ctx context.Context, userID primitive.Ob
 		}
 	}
 
+	// If auto-RAG is enabled, create RAG configuration
+	if field.EnableAutoRAG && field.ProviderID != "" {
+		// Create RAG configuration for this collection
+		providerObjID, err := primitive.ObjectIDFromHex(field.ProviderID)
+		if err == nil {
+			ragConfig := &models.CollectionRAGConfig{
+				ID:             primitive.NewObjectID(),
+				CollectionName: collectionName,
+				ProviderID:     providerObjID,
+				ContentFields:  field.SourceFields,
+				VectorFieldName: field.Name,
+				AutoEmbed:      field.AutoEmbed,
+				Enabled:        true,
+				CreatedBy:      userID,
+				CreatedAt:      time.Now().UTC(),
+				UpdatedAt:      time.Now().UTC(),
+			}
+			
+			// Store RAG configuration
+			ragCol := s.db.Collection("rag_configs")
+			ragDoc := map[string]interface{}{
+				"_id":              ragConfig.ID.Hex(),
+				"collection_name":  ragConfig.CollectionName,
+				"provider_id":      ragConfig.ProviderID.Hex(),
+				"content_fields":   ragConfig.ContentFields,
+				"vector_field_name": ragConfig.VectorFieldName,
+				"auto_embed":       ragConfig.AutoEmbed,
+				"enabled":          ragConfig.Enabled,
+				"created_by":       ragConfig.CreatedBy.Hex(),
+				"created_at":       ragConfig.CreatedAt,
+				"updated_at":       ragConfig.UpdatedAt,
+			}
+			
+			if _, err := ragCol.InsertOne(ctx, ragDoc); err != nil {
+				fmt.Printf("Warning: Failed to create RAG configuration: %v\n", err)
+			}
+		}
+	}
+
 	s.logAccess(ctx, userID, collectionName, nil, "add_vector_field", "success", field.Name)
 	return nil
 }

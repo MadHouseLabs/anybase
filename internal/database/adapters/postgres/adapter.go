@@ -146,6 +146,9 @@ func (p *PostgresAdapter) initializeSchema(ctx context.Context) error {
 		"audit_logs",
 		"settings",
 		"collections",  // Add collections table for metadata storage
+		"ai_providers",
+		"rag_configs",
+		"embedding_jobs",
 	}
 	
 	for _, collection := range systemCollections {

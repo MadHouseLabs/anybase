@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	v1 "github.com/madhouselabs/anybase/api/v1"
 	"github.com/madhouselabs/anybase/internal/accesskey"
+	"github.com/madhouselabs/anybase/internal/ai"
 	"github.com/madhouselabs/anybase/internal/auth"
 	"github.com/madhouselabs/anybase/internal/collection"
 	"github.com/madhouselabs/anybase/internal/config"
@@ -64,6 +65,13 @@ func main() {
 	collectionService := collection.NewAdapterService(dbAdapter, rbacService)
 	accessKeyRepo := accesskey.NewRepository(dbAdapter)
 	settingsService := settings.NewAdapterService(dbAdapter)
+	
+	// Initialize AI service
+	aiService := ai.NewService(dbAdapter, collectionService)
+	// Start the job processor for background embedding generation
+	jobProcessor := ai.NewJobProcessor(aiService)
+	jobProcessor.Start()
+	defer jobProcessor.Stop()
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(&cfg.Auth, rbacService)
@@ -103,7 +111,7 @@ func main() {
 	router.POST("/mcp", accessKeyMiddleware.Authenticate(), authMiddleware.RequireAuth(), mcpHandler.HandleMCPRequest)
 
 	// API routes
-	setupAPIRoutes(router, authService, authMiddleware, accessKeyMiddleware, rbacService, collectionService, userRepo, accessKeyRepo, settingsService)
+	setupAPIRoutes(router, authService, authMiddleware, accessKeyMiddleware, rbacService, collectionService, userRepo, accessKeyRepo, settingsService, aiService)
 
 	// Start server
 	srv := &http.Server{
@@ -138,7 +146,7 @@ func main() {
 	log.Println("Server exited")
 }
 
-func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware *middleware.AuthMiddleware, accessKeyMiddleware *middleware.AccessKeyAuthMiddleware, rbacService governance.RBACService, collectionService collection.Service, userRepo user.Repository, accessKeyRepo accesskey.Repository, settingsService settings.Service) {
+func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware *middleware.AuthMiddleware, accessKeyMiddleware *middleware.AccessKeyAuthMiddleware, rbacService governance.RBACService, collectionService collection.Service, userRepo user.Repository, accessKeyRepo accesskey.Repository, settingsService settings.Service, aiService ai.Service) {
 	// API v1 group
 	api := router.Group("/api/v1")
 
@@ -274,6 +282,55 @@ func setupAPIRoutes(router *gin.Engine, authService auth.Service, authMiddleware
 		{
 			settingsAdminGroup.PUT("/system", settingsHandler.UpdateSystemSettings)
 		}
+	}
+
+	// AI Provider and RAG endpoints
+	aiHandler := v1.NewAIHandler(aiService)
+	
+	// Provider management - admin and developer only
+	providersGroup := api.Group("/ai/providers")
+	providersGroup.Use(authMiddleware.RequireRole("admin", "developer"))
+	{
+		providersGroup.POST("", aiHandler.CreateProvider)
+		providersGroup.GET("", aiHandler.ListProviders)
+		providersGroup.GET("/:id", aiHandler.GetProvider)
+		providersGroup.GET("/:id/models", aiHandler.GetProviderModels)
+		providersGroup.PUT("/:id", aiHandler.UpdateProvider)
+		providersGroup.DELETE("/:id", aiHandler.DeleteProvider)
+	}
+	
+	// RAG configuration - per collection
+	ragGroup := api.Group("/rag/collections/:collection")
+	ragGroup.Use(accessKeyMiddleware.Authenticate())
+	ragGroup.Use(authMiddleware.RequireAuth())
+	{
+		ragGroup.POST("/configure", aiHandler.ConfigureRAG)
+		ragGroup.GET("/config", aiHandler.GetRAGConfig)
+		ragGroup.PUT("/config", aiHandler.UpdateRAGConfig)
+		ragGroup.DELETE("/config", aiHandler.DeleteRAGConfig)
+		
+		// Embedding generation
+		ragGroup.POST("/embeddings", aiHandler.GenerateEmbeddings)
+		ragGroup.POST("/embeddings/all", aiHandler.GenerateAllEmbeddings)
+		
+		// RAG query
+		ragGroup.POST("/query", aiHandler.QueryRAG)
+	}
+	
+	// Embedding jobs management
+	jobsGroup := api.Group("/ai/jobs")
+	jobsGroup.Use(authMiddleware.RequireAuth())
+	{
+		jobsGroup.GET("", aiHandler.ListEmbeddingJobs)
+		jobsGroup.GET("/:jobId", aiHandler.GetEmbeddingJob)
+		jobsGroup.POST("/:jobId/cancel", aiHandler.CancelEmbeddingJob)
+	}
+	
+	// RAG configurations list
+	ragConfigsGroup := api.Group("/ai/rag-configs")
+	ragConfigsGroup.Use(authMiddleware.RequireAuth())
+	{
+		ragConfigsGroup.GET("", aiHandler.ListRAGConfigs)
 	}
 }
 

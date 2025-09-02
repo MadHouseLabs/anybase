@@ -40,6 +40,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { SchemaEditor } from "@/components/schema-editor"
 import { validateDocument, type ValidationError } from "@/lib/schema-validator"
 import { VectorFieldsManager } from "@/components/vector-fields-manager"
+import { QueryInterface } from "@/components/query-interface"
 import { formatLocalDateOnly, formatLocalDateTime } from "@/lib/date-utils"
 
 export default function CollectionDetailPage() {
@@ -553,10 +554,14 @@ export default function CollectionDetailPage() {
       {/* Content */}
       <div className="flex-1 container mx-auto px-6 py-6 max-w-7xl">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
-          <TabsList className="grid w-full max-w-[600px] grid-cols-5">
+          <TabsList className="grid w-full max-w-[700px] grid-cols-6">
             <TabsTrigger value="documents" className="flex items-center gap-2">
               <FileJson className="h-4 w-4" />
               Documents
+            </TabsTrigger>
+            <TabsTrigger value="query" className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Query
             </TabsTrigger>
             <TabsTrigger value="schema" className="flex items-center gap-2">
               <FileCode className="h-4 w-4" />
@@ -745,6 +750,10 @@ export default function CollectionDetailPage() {
                 </div>
               )}
             </div>
+          </TabsContent>
+
+          <TabsContent value="query" className="flex-1 mt-6">
+            <QueryInterface collectionName={collectionName} />
           </TabsContent>
 
           <TabsContent value="schema" className="flex-1 mt-6">

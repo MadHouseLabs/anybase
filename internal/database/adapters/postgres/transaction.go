@@ -26,8 +26,8 @@ func (t *PostgresTransaction) Rollback(ctx context.Context) error {
 
 // Collection returns a collection that uses this transaction
 func (t *PostgresTransaction) Collection(name string) types.Collection {
-	// For transaction support, we'd need to modify PostgresCollection to accept either *sql.DB or *sql.Tx
 	// For now, return the regular collection
+	// TODO: Implement transaction-aware collection
 	return t.adapter.Collection(name)
 }
 

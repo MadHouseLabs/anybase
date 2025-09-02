@@ -8,17 +8,19 @@ import (
 
 // AdapterService is a new implementation that uses the database adapter
 type AdapterService struct {
-	db          types.DB
-	rbacService governance.RBACService
-	validator   *validator.SchemaValidator
+	db             types.DB
+	rbacService    governance.RBACService
+	validator      *validator.SchemaValidator
+	inputValidator *validator.InputValidator
 }
 
 // NewAdapterService creates a new adapter-based service
 func NewAdapterService(db types.DB, rbacService governance.RBACService) *AdapterService {
 	return &AdapterService{
-		db:          db,
-		rbacService: rbacService,
-		validator:   validator.NewSchemaValidator(),
+		db:             db,
+		rbacService:    rbacService,
+		validator:      validator.NewSchemaValidator(),
+		inputValidator: validator.NewInputValidator(),
 	}
 }
 

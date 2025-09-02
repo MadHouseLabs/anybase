@@ -49,6 +49,11 @@ func NewRBACService(db types.DB) RBACService {
 
 // GetUserRole gets the role of a user
 func (s *rbacService) GetUserRole(ctx context.Context, userID primitive.ObjectID) (string, error) {
+	// Skip if access key is already validated
+	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+		return "admin", nil // Return admin role for validated access keys
+	}
+	
 	var user map[string]interface{}
 
 	// Create filter - handle both MongoDB ObjectID and PostgreSQL UUID
@@ -102,6 +107,11 @@ func (s *rbacService) SetUserRole(ctx context.Context, userID primitive.ObjectID
 
 // HasRole checks if a user has a specific role
 func (s *rbacService) HasRole(ctx context.Context, userID primitive.ObjectID, role string) (bool, error) {
+	// Skip if access key is already validated
+	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+		return true, nil // Access keys have all roles
+	}
+	
 	userRole, err := s.GetUserRole(ctx, userID)
 	if err != nil {
 		return false, err
@@ -112,6 +122,11 @@ func (s *rbacService) HasRole(ctx context.Context, userID primitive.ObjectID, ro
 
 // GetEffectivePermissions gets all permissions for a user based on their role
 func (s *rbacService) GetEffectivePermissions(ctx context.Context, userID primitive.ObjectID) ([]string, error) {
+	// Skip if access key is already validated
+	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+		return []string{"*:*:*"}, nil // Return full permissions for validated access keys
+	}
+	
 	role, err := s.GetUserRole(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -128,6 +143,11 @@ func (s *rbacService) GetEffectivePermissions(ctx context.Context, userID primit
 
 // HasPermission checks if a user has a specific permission
 func (s *rbacService) HasPermission(ctx context.Context, userID primitive.ObjectID, resource, action string) (bool, error) {
+	// Skip permission checks if access key is already validated
+	if validated, ok := ctx.Value("access_key_validated").(bool); ok && validated {
+		return true, nil
+	}
+	
 	// Construct the permission string
 	var permissionName string
 	if strings.Count(resource, ":") == 1 {

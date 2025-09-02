@@ -131,7 +131,7 @@ func (r *repository) GetByKey(ctx context.Context, key string) (*models.AccessKe
 		if err := cursor.Decode(&ak); err != nil {
 			continue
 		}
-
+		
 		// Check if this key matches
 		if err := verifyKey(ak.KeyHash, key); err == nil {
 			// Check if expired

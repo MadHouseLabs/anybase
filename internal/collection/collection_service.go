@@ -14,6 +14,11 @@ import (
 
 // CreateCollection creates a new collection with governance checks
 func (s *AdapterService) CreateCollection(ctx context.Context, userID primitive.ObjectID, collection *models.Collection) error {
+	// Validate collection name to prevent SQL injection and other issues
+	if err := s.inputValidator.ValidateCollectionName(collection.Name); err != nil {
+		return fmt.Errorf("invalid collection name: %w", err)
+	}
+
 	// Get user role
 	userRole, err := s.rbacService.GetUserRole(ctx, userID)
 	if err != nil {
@@ -93,14 +98,18 @@ func (s *AdapterService) CreateCollection(ctx context.Context, userID primitive.
 
 // GetCollection retrieves a collection with governance checks
 func (s *AdapterService) GetCollection(ctx context.Context, userID primitive.ObjectID, name string) (*models.Collection, error) {
-	// Check permissions
-	hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("collection:%s", name), "read")
-	if err != nil {
-		return nil, fmt.Errorf("failed to check permissions: %w", err)
-	}
-	if !hasPermission {
-		s.logAccess(ctx, userID, name, nil, "read", "denied", "insufficient permissions")
-		return nil, fmt.Errorf("insufficient permissions to read collection")
+	// Skip permission checks if access key is already validated
+	validated, _ := ctx.Value("access_key_validated").(bool)
+	if !validated {
+		// Check permissions only for JWT auth
+		hasPermission, err := s.rbacService.HasPermission(ctx, userID, fmt.Sprintf("collection:%s", name), "read")
+		if err != nil {
+			return nil, fmt.Errorf("failed to check permissions: %w", err)
+		}
+		if !hasPermission {
+			s.logAccess(ctx, userID, name, nil, "read", "denied", "insufficient permissions")
+			return nil, fmt.Errorf("insufficient permissions to read collection")
+		}
 	}
 
 	collectionsCol := s.db.Collection("collections")
@@ -108,7 +117,7 @@ func (s *AdapterService) GetCollection(ctx context.Context, userID primitive.Obj
 	var collection models.Collection
 	filter := map[string]interface{}{"name": name}
 	
-	err = collectionsCol.FindOne(ctx, filter, &collection)
+	err := collectionsCol.FindOne(ctx, filter, &collection)
 	if err != nil {
 		if err == types.ErrNoDocuments {
 			return nil, fmt.Errorf("collection not found")

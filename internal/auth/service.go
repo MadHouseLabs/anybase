@@ -251,15 +251,26 @@ func (s *service) ResetPassword(ctx context.Context, token, newPassword string) 
 		return fmt.Errorf("invalid or expired token: %w", err)
 	}
 
+	// Check if token has expired
+	if u.PasswordResetExpiry != nil && u.PasswordResetExpiry.Before(time.Now()) {
+		return fmt.Errorf("password reset token has expired")
+	}
+
 	// Hash new password
 	hashedPassword, err := s.hashPassword(newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Update password
+	// Update password and clear reset token
 	if err := s.userRepo.UpdatePassword(ctx, u.ID, hashedPassword); err != nil {
 		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	// Clear reset token to prevent reuse
+	if err := s.userRepo.SetPasswordResetToken(ctx, u.ID, "", time.Time{}); err != nil {
+		// Log error but don't fail the password reset
+		fmt.Printf("failed to clear reset token: %v\n", err)
 	}
 
 	return nil
@@ -305,6 +316,9 @@ func (s *service) verifyPassword(hashedPassword, password string) error {
 
 func (s *service) generateToken() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		// Critical security issue - should not continue with weak token
+		panic(fmt.Sprintf("failed to generate secure random token: %v", err))
+	}
 	return hex.EncodeToString(b)
 }

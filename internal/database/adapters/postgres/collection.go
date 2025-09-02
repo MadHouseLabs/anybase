@@ -21,15 +21,6 @@ type PostgresCollection struct {
 	db        *sql.DB
 	name      string
 	tableName string
-	vectorOps *VectorOperations
-}
-
-// GetVectorOperations returns the vector operations handler for this collection
-func (c *PostgresCollection) GetVectorOperations() *VectorOperations {
-	if c.vectorOps == nil {
-		c.vectorOps = NewVectorOperations(c.db, c.tableName)
-	}
-	return c.vectorOps
 }
 
 // InsertOne inserts a single document
@@ -41,13 +32,7 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 	if docID, ok := document["_id"]; ok {
 		// Store the MongoDB-style ID (hex string) for application compatibility
 		if strID, ok := docID.(string); ok {
-			// Validate that it's a proper MongoDB ObjectID (24 hex chars)
-			if objID, err := primitive.ObjectIDFromHex(strID); err == nil {
-				mongoID = objID.Hex() // Use the validated hex
-			} else {
-				// Invalid ID provided - generate a new valid one
-				mongoID = primitive.NewObjectID().Hex()
-			}
+			mongoID = strID
 			// Try to parse as UUID for PostgreSQL _id column
 			parsedID, err := uuid.Parse(strID)
 			if err == nil {
@@ -56,14 +41,9 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 				// Not a UUID, generate a new one for PostgreSQL
 				id = uuid.New()
 			}
-		} else if objID, ok := docID.(primitive.ObjectID); ok {
-			// Handle ObjectID type directly
-			mongoID = objID.Hex()
-			id = uuid.New()
 		} else {
-			// Invalid type - generate new IDs
 			id = uuid.New()
-			mongoID = primitive.NewObjectID().Hex()
+			mongoID = id.String()
 		}
 	} else {
 		id = uuid.New()
@@ -85,20 +65,6 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 		}
 	}
 	
-	// Extract vectors if present
-	vectors := make(map[string][]float32)
-	if vecData, ok := document["_vectors"]; ok {
-		if vecMap, ok := vecData.(map[string]interface{}); ok {
-			for fieldName, vecValue := range vecMap {
-				if vec, ok := convertToFloat32Array(vecValue); ok {
-					vectors[fieldName] = vec
-				}
-			}
-		}
-		// Remove vectors from document data
-		delete(document, "_vectors")
-	}
-	
 	// Create a clean data object with only actual data fields
 	dataOnly := make(map[string]interface{})
 	for k, v := range document {
@@ -111,7 +77,7 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 		} else if k != "_id" && k != "collection" && k != "created_by" && 
 		          k != "updated_by" && k != "created_at" && k != "updated_at" && 
 		          k != "_created_at" && k != "_updated_at" && k != "_version" && 
-		          k != "_deleted_at" && k != "_vectors" {
+		          k != "_deleted_at" {
 			// Include non-metadata fields
 			dataOnly[k] = v
 		}
@@ -138,28 +104,14 @@ func (c *PostgresCollection) InsertOne(ctx context.Context, document map[string]
 		return nil, fmt.Errorf("failed to marshal document: %w", err)
 	}
 	
-	// Build dynamic query with vector columns if present
-	columns := []string{"_id", "data", "_created_by", "_updated_by", "_created_at", "_updated_at"}
-	placeholders := []string{"$1", "$2", "$3", "$4", "CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP"}
-	args := []interface{}{id, data, createdBy, updatedBy}
-	
-	// Add vector columns
-	paramIndex := 5
-	for fieldName, vector := range vectors {
-		columns = append(columns, fmt.Sprintf("vec_%s", fieldName))
-		placeholders = append(placeholders, fmt.Sprintf("$%d::vector", paramIndex))
-		args = append(args, c.GetVectorOperations().vectorToString(vector))
-		paramIndex++
-	}
-	
 	query := fmt.Sprintf(`
-		INSERT INTO %s (%s)
-		VALUES (%s)
+		INSERT INTO %s (_id, data, _created_by, _updated_by, _created_at, _updated_at)
+		VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		RETURNING _id
-	`, c.tableName, strings.Join(columns, ", "), strings.Join(placeholders, ", "))
+	`, c.tableName)
 	
 	var returnedID uuid.UUID
-	err = c.db.QueryRowContext(ctx, query, args...).Scan(&returnedID)
+	err = c.db.QueryRowContext(ctx, query, id, data, createdBy, updatedBy).Scan(&returnedID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert document: %w", err)
 	}
@@ -306,16 +258,10 @@ func (c *PostgresCollection) FindOne(ctx context.Context, filter map[string]inte
 		}
 	} else if docPtr, ok := result.(*models.Document); ok {
 		// Handle Document type specifically
-		// Get the _id from the JSONB data and remember if it was invalid
-		var invalidID string
+		// Get the _id from the JSONB data
 		if idStr, ok := dataMap["_id"].(string); ok {
 			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
 				docPtr.ID = objID
-			} else {
-				// Generate a new ObjectID for invalid IDs
-				docPtr.ID = primitive.NewObjectID()
-				// Remember the invalid ID to add to data later
-				invalidID = idStr
 			}
 		}
 		
@@ -347,14 +293,6 @@ func (c *PostgresCollection) FindOne(ctx context.Context, filter map[string]inte
 				}
 			}
 			docPtr.Data = cleanData
-		}
-		
-		// Add the original invalid ID if there was one
-		if invalidID != "" {
-			if docPtr.Data == nil {
-				docPtr.Data = make(map[string]interface{})
-			}
-			docPtr.Data["_original_id"] = invalidID
 		}
 		
 		// Set created_by and updated_by from column values
@@ -399,6 +337,95 @@ func (c *PostgresCollection) FindOne(ctx context.Context, filter map[string]inte
 			(*m)["_updated_at"] = updatedAt.Time
 		}
 		(*m)["_version"] = version
+	} else if providerPtr, ok := result.(*models.AIProvider); ok {
+		// Handle AIProvider type
+		// Get the _id from the JSONB data
+		if idStr, ok := dataMap["_id"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
+				providerPtr.ID = objID
+			}
+		}
+		
+		// If we still don't have an ID, generate one
+		if providerPtr.ID.IsZero() {
+			providerPtr.ID = primitive.NewObjectID()
+		}
+		
+		// Set created_by from JSONB data
+		if cbStr, ok := dataMap["created_by"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(cbStr); err == nil {
+				providerPtr.CreatedBy = objID
+			}
+		}
+		
+		// Manually set APIKeyHash since it has json:"-" tag
+		if keyHash, ok := dataMap["api_key_hash"].(string); ok {
+			providerPtr.APIKeyHash = keyHash
+		}
+		
+		// Use timestamps from database columns
+		if createdAt.Valid {
+			providerPtr.CreatedAt = createdAt.Time
+		}
+		if updatedAt.Valid {
+			providerPtr.UpdatedAt = updatedAt.Time
+		}
+	} else if keyPtr, ok := result.(*models.AccessKey); ok {
+		// Handle AccessKey type
+		// Get the _id from the JSONB data
+		if idStr, ok := dataMap["_id"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
+				keyPtr.ID = objID
+			}
+		}
+		
+		// If we still don't have an ID, generate one
+		if keyPtr.ID.IsZero() {
+			keyPtr.ID = primitive.NewObjectID()
+		}
+		
+		// Manually set KeyHash since it has json:"-" tag
+		if keyHash, ok := dataMap["key_hash"].(string); ok {
+			keyPtr.KeyHash = keyHash
+		}
+		
+		// Store the actual UUID in a temporary field for reference if needed
+		// (AccessKey doesn't have a Metadata field)
+		
+		if createdAt.Valid {
+			keyPtr.CreatedAt = createdAt.Time
+		}
+		if updatedAt.Valid {
+			keyPtr.UpdatedAt = updatedAt.Time
+		}
+	} else if colPtr, ok := result.(*models.Collection); ok {
+		// Handle Collection type
+		// Get the _id from the JSONB data
+		if idStr, ok := dataMap["_id"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(idStr); err == nil {
+				colPtr.ID = objID
+			}
+		}
+		
+		// If we still don't have an ID, generate one
+		if colPtr.ID.IsZero() {
+			colPtr.ID = primitive.NewObjectID()
+		}
+		
+		// Set created_by from JSONB data
+		if cbStr, ok := dataMap["created_by"].(string); ok {
+			if objID, err := primitive.ObjectIDFromHex(cbStr); err == nil {
+				colPtr.CreatedBy = objID
+			}
+		}
+		
+		// Use timestamps from database columns
+		if createdAt.Valid {
+			colPtr.CreatedAt = createdAt.Time
+		}
+		if updatedAt.Valid {
+			colPtr.UpdatedAt = updatedAt.Time
+		}
 	}
 	
 	return nil
@@ -481,12 +508,22 @@ func (c *PostgresCollection) UpdateOne(ctx context.Context, filter map[string]in
 	updateClause, updateArgs := c.buildJSONBUpdateClause(setOps, len(args)+1)
 	args = append(args, updateArgs...)
 	
-	query := fmt.Sprintf(`
-		UPDATE %s
-		SET %s,
-		    _updated_at = CURRENT_TIMESTAMP
-		WHERE _deleted_at IS NULL %s
-	`, c.tableName, updateClause, where)
+	var query string
+	if updateClause != "" {
+		query = fmt.Sprintf(`
+			UPDATE %s
+			SET %s,
+			    _updated_at = CURRENT_TIMESTAMP
+			WHERE _deleted_at IS NULL %s
+		`, c.tableName, updateClause, where)
+	} else {
+		// Only updating timestamp if no data changes
+		query = fmt.Sprintf(`
+			UPDATE %s
+			SET _updated_at = CURRENT_TIMESTAMP
+			WHERE _deleted_at IS NULL %s
+		`, c.tableName, where)
+	}
 	
 	result, err := c.db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -598,12 +635,22 @@ func (c *PostgresCollection) UpdateMany(ctx context.Context, filter map[string]i
 	updateClause, updateArgs := c.buildJSONBUpdateClause(setOps, len(args)+1)
 	args = append(args, updateArgs...)
 	
-	query := fmt.Sprintf(`
-		UPDATE %s
-		SET %s,
-		    _updated_at = CURRENT_TIMESTAMP
-		WHERE _deleted_at IS NULL %s
-	`, c.tableName, updateClause, where)
+	var query string
+	if updateClause != "" {
+		query = fmt.Sprintf(`
+			UPDATE %s
+			SET %s,
+			    _updated_at = CURRENT_TIMESTAMP
+			WHERE _deleted_at IS NULL %s
+		`, c.tableName, updateClause, where)
+	} else {
+		// Only updating timestamp if no data changes
+		query = fmt.Sprintf(`
+			UPDATE %s
+			SET _updated_at = CURRENT_TIMESTAMP
+			WHERE _deleted_at IS NULL %s
+		`, c.tableName, where)
+	}
 	
 	result, err := c.db.ExecContext(ctx, query, args...)
 	if err != nil {
@@ -1044,33 +1091,7 @@ func (c *PostgresCollection) buildOrderBy(sort map[string]int) string {
 	return strings.Join(parts, ", ")
 }
 
-// convertToFloat32Array converts various input types to []float32
-func convertToFloat32Array(v interface{}) ([]float32, bool) {
-	switch vec := v.(type) {
-	case []float32:
-		return vec, true
-	case []float64:
-		result := make([]float32, len(vec))
-		for i, val := range vec {
-			result[i] = float32(val)
-		}
-		return result, true
-	case []interface{}:
-		result := make([]float32, len(vec))
-		for i, val := range vec {
-			switch num := val.(type) {
-			case float64:
-				result[i] = float32(num)
-			case float32:
-				result[i] = num
-			case int:
-				result[i] = float32(num)
-			default:
-				return nil, false
-			}
-		}
-		return result, true
-	default:
-		return nil, false
-	}
+// GetVectorOperations returns a VectorOperations instance for this collection
+func (c *PostgresCollection) GetVectorOperations() *VectorOperations {
+	return NewVectorOperations(c.db, c.tableName)
 }

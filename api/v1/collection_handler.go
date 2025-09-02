@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,6 +79,9 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 		return
 	}
 
+	// Debug logging
+	fmt.Printf("DEBUG: UpdateCollection received updates: %+v\n", updates)
+
 	// If schema is being updated, validate it
 	if schemaUpdate, hasSchema := updates["schema"]; hasSchema && schemaUpdate != nil {
 		// Try to parse as CollectionSchema
@@ -91,7 +95,12 @@ func (h *CollectionHandler) UpdateCollection(c *gin.Context) {
 		}
 	}
 
-	if err := h.collectionService.UpdateCollection(c.Request.Context(), userID, name, updates); err != nil {
+	// Wrap updates in $set operator for MongoDB-style operations
+	wrappedUpdates := bson.M{
+		"$set": updates,
+	}
+
+	if err := h.collectionService.UpdateCollection(c.Request.Context(), userID, name, wrappedUpdates); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -444,7 +453,7 @@ func (h *CollectionHandler) InsertDocument(c *gin.Context) {
 		hasPermission := false
 		requiredPerm := "collection:" + collectionName + ":write"
 		for _, perm := range perms {
-			if perm == requiredPerm || perm == "collection:*:write" || perm == "*:*:*" {
+			if perm == requiredPerm || perm == "collection:*:write" || perm == "collection:*:*" || perm == "*:*:*" {
 				hasPermission = true
 				break
 			}
@@ -458,11 +467,21 @@ func (h *CollectionHandler) InsertDocument(c *gin.Context) {
 		// Use special context to bypass user checks
 		ctx := context.WithValue(c.Request.Context(), "access_key_validated", true)
 		
+		// Get access key ID to track who created the document
+		accessKeyID := primitive.NilObjectID
+		if keyID, exists := c.Get("access_key_id"); exists {
+			if keyStr, ok := keyID.(string); ok {
+				if objID, err := primitive.ObjectIDFromHex(keyStr); err == nil {
+					accessKeyID = objID
+				}
+			}
+		}
+		
 		mutation := &models.DataMutation{
 			Collection: collectionName,
 			Operation:  "insert",
 			Data:       data,
-			UserID:     primitive.NilObjectID, // No user for access keys
+			UserID:     accessKeyID, // Use access key ID for tracking
 			UserRoles:  []string{},
 		}
 		
@@ -522,7 +541,7 @@ func (h *CollectionHandler) GetDocument(c *gin.Context) {
 		hasPermission := false
 		requiredPerm := "collection:" + collectionName + ":read"
 		for _, perm := range perms {
-			if perm == requiredPerm || perm == "collection:*:read" || perm == "*:*:*" {
+			if perm == requiredPerm || perm == "collection:*:read" || perm == "collection:*:*" || perm == "*:*:*" {
 				hasPermission = true
 				break
 			}
@@ -589,7 +608,7 @@ func (h *CollectionHandler) UpdateDocument(c *gin.Context) {
 		hasPermission := false
 		requiredPerm := "collection:" + collectionName + ":update"
 		for _, perm := range perms {
-			if perm == requiredPerm || perm == "collection:*:update" || perm == "*:*:*" {
+			if perm == requiredPerm || perm == "collection:*:update" || perm == "collection:*:*" || perm == "*:*:*" {
 				hasPermission = true
 				break
 			}
@@ -603,12 +622,22 @@ func (h *CollectionHandler) UpdateDocument(c *gin.Context) {
 		// Use special context to bypass user checks
 		ctx := context.WithValue(c.Request.Context(), "access_key_validated", true)
 		
+		// Get access key ID to track who updated the document
+		accessKeyID := primitive.NilObjectID
+		if keyID, exists := c.Get("access_key_id"); exists {
+			if keyStr, ok := keyID.(string); ok {
+				if objID, err := primitive.ObjectIDFromHex(keyStr); err == nil {
+					accessKeyID = objID
+				}
+			}
+		}
+		
 		mutation := &models.DataMutation{
 			Collection: collectionName,
 			Operation:  "update",
 			DocumentID: objectID,
 			Data:       data,
-			UserID:     primitive.NilObjectID,
+			UserID:     accessKeyID, // Use access key ID for tracking
 			UserRoles:  []string{},
 		}
 		
@@ -667,7 +696,7 @@ func (h *CollectionHandler) DeleteDocument(c *gin.Context) {
 		hasPermission := false
 		requiredPerm := "collection:" + collectionName + ":delete"
 		for _, perm := range perms {
-			if perm == requiredPerm || perm == "collection:*:delete" || perm == "*:*:*" {
+			if perm == requiredPerm || perm == "collection:*:delete" || perm == "collection:*:*" || perm == "*:*:*" {
 				hasPermission = true
 				break
 			}
@@ -681,11 +710,21 @@ func (h *CollectionHandler) DeleteDocument(c *gin.Context) {
 		// Use special context to bypass user checks
 		ctx := context.WithValue(c.Request.Context(), "access_key_validated", true)
 		
+		// Get access key ID to track who deleted the document
+		accessKeyID := primitive.NilObjectID
+		if keyID, exists := c.Get("access_key_id"); exists {
+			if keyStr, ok := keyID.(string); ok {
+				if objID, err := primitive.ObjectIDFromHex(keyStr); err == nil {
+					accessKeyID = objID
+				}
+			}
+		}
+		
 		mutation := &models.DataMutation{
 			Collection: collectionName,
 			Operation:  "delete",
 			DocumentID: objectID,
-			UserID:     primitive.NilObjectID,
+			UserID:     accessKeyID, // Use access key ID for tracking
 			UserRoles:  []string{},
 		}
 		
@@ -736,7 +775,7 @@ func (h *CollectionHandler) QueryDocuments(c *gin.Context) {
 		hasPermission := false
 		requiredPerm := "collection:" + collectionName + ":read"
 		for _, perm := range perms {
-			if perm == requiredPerm || perm == "collection:*:read" || perm == "*:*:*" {
+			if perm == requiredPerm || perm == "collection:*:read" || perm == "collection:*:*" || perm == "*:*:*" {
 				hasPermission = true
 				break
 			}

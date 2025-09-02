@@ -10,11 +10,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   Plus, Trash2, Layers, Hash, Cpu, Search, Info,
-  AlertCircle, CheckCircle, XCircle
+  AlertCircle, CheckCircle, XCircle, Bot, Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { collectionsApi } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface VectorField {
   name: string;
@@ -25,6 +27,24 @@ interface VectorField {
   list_size?: number;
   m?: number;
   ef_construct?: number;
+  enable_auto_rag?: boolean;
+  provider_id?: string;
+  source_fields?: string[];
+  auto_embed?: boolean;
+}
+
+interface AIProvider {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface AIModel {
+  id: string;
+  name: string;
+  description?: string;
+  type: string;
+  dimensions?: number;
 }
 
 interface VectorFieldsManagerProps {
@@ -38,6 +58,10 @@ export function VectorFieldsManager({ collectionName, onFieldsUpdate }: VectorFi
   const [isLoading, setIsLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [providers, setProviders] = useState<AIProvider[]>([]);
+  const [availableModels, setAvailableModels] = useState<AIModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [collectionFields, setCollectionFields] = useState<string[]>([]);
   
   // New field form state
   const [newField, setNewField] = useState<VectorField>({
@@ -46,6 +70,11 @@ export function VectorFieldsManager({ collectionName, onFieldsUpdate }: VectorFi
     metric: "cosine",
     index_type: "ivfflat",
     list_size: 100,
+    enable_auto_rag: false,
+    provider_id: "",
+    source_fields: [],
+    auto_embed: true,
+    model: "text-embedding-ada-002", // Default embedding model
   });
 
   // Fetch vector fields
@@ -66,8 +95,58 @@ export function VectorFieldsManager({ collectionName, onFieldsUpdate }: VectorFi
     }
   };
 
+  // Fetch AI providers
+  const fetchProviders = async () => {
+    try {
+      const { aiProvidersApi } = await import('@/lib/api');
+      const data = await aiProvidersApi.list();
+      setProviders(data.providers || []);
+    } catch (error) {
+      console.error('Error fetching providers:', error);
+    }
+  };
+
+  // Fetch collection schema to get field names
+  const fetchCollectionSchema = async () => {
+    try {
+      const collection = await collectionsApi.get(collectionName);
+      if (collection?.schema?.properties) {
+        setCollectionFields(Object.keys(collection.schema.properties));
+      }
+    } catch (error) {
+      console.error('Error fetching collection schema:', error);
+    }
+  };
+
+  // Fetch available models for a provider
+  const fetchProviderModels = async (providerId: string) => {
+    if (!providerId) {
+      setAvailableModels([]);
+      return;
+    }
+
+    try {
+      setIsLoadingModels(true);
+      const { aiProvidersApi } = await import('@/lib/api');
+      const data = await aiProvidersApi.getModels(providerId);
+      setAvailableModels(data.models || []);
+    } catch (error) {
+      console.error('Error fetching provider models:', error);
+      setAvailableModels([]);
+      toast({
+        title: "Warning",
+        description: "Unable to fetch available models from provider",
+        variant: "default",
+      });
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
+
   useEffect(() => {
     fetchVectorFields();
+    fetchProviders();
+    fetchCollectionSchema();
   }, [collectionName]);
 
   // Add vector field
@@ -96,7 +175,13 @@ export function VectorFieldsManager({ collectionName, onFieldsUpdate }: VectorFi
         metric: "cosine",
         index_type: "ivfflat",
         list_size: 100,
+        enable_auto_rag: false,
+        provider_id: "",
+        source_fields: [],
+        auto_embed: true,
+        model: "",
       });
+      setAvailableModels([]); // Clear models when dialog closes
       
       await fetchVectorFields();
       onFieldsUpdate?.();
@@ -312,21 +397,252 @@ export function VectorFieldsManager({ collectionName, onFieldsUpdate }: VectorFi
               </div>
             </div>
 
-            {/* Model Section */}
-            <div className="space-y-2">
-              <Label htmlFor="model" className="text-sm font-medium">
-                Embedding Model <span className="text-xs text-muted-foreground">(Optional)</span>
-              </Label>
-              <Input
-                id="model"
-                value={newField.model || ""}
-                onChange={(e) => setNewField({ ...newField, model: e.target.value })}
-                className="w-full"
-                placeholder="e.g., text-embedding-ada-002, all-MiniLM-L6-v2"
-              />
-              <p className="text-xs text-muted-foreground">
-                Document which model was used for generating embeddings
-              </p>
+            {/* Model Section - Only shown when NOT using Auto-RAG */}
+            {!newField.enable_auto_rag && (
+              <div className="space-y-2">
+                <Label htmlFor="model" className="text-sm font-medium">
+                  Embedding Model <span className="text-xs text-muted-foreground">(Optional)</span>
+                </Label>
+                <Input
+                  id="model"
+                  value={newField.model || ""}
+                  onChange={(e) => setNewField({ ...newField, model: e.target.value })}
+                  className="w-full"
+                  placeholder="e.g., text-embedding-ada-002, all-MiniLM-L6-v2"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Document which model was used for generating embeddings
+                </p>
+              </div>
+            )}
+
+            {/* Auto-RAG Configuration Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="enable-rag" className="text-sm font-medium flex items-center gap-2">
+                    <Bot className="h-4 w-4" />
+                    Enable Auto-RAG
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Automatically generate embeddings using AI providers
+                  </p>
+                </div>
+                <Switch
+                  id="enable-rag"
+                  checked={newField.enable_auto_rag}
+                  onCheckedChange={(checked) => setNewField({ ...newField, enable_auto_rag: checked })}
+                />
+              </div>
+
+              {newField.enable_auto_rag && (
+                <div className="space-y-4 pl-4 border-l-2 border-muted ml-2">
+                  {/* AI Provider Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="provider" className="text-sm font-medium">
+                      AI Provider <span className="text-red-500">*</span>
+                    </Label>
+                    <Select
+                      value={newField.provider_id}
+                      onValueChange={async (value) => {
+                        setNewField({ 
+                          ...newField, 
+                          provider_id: value,
+                          model: "" // Reset model selection when provider changes
+                        });
+                        
+                        // Fetch available models for the selected provider
+                        await fetchProviderModels(value);
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an AI provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {providers.length === 0 ? (
+                          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                            No providers configured
+                          </div>
+                        ) : (
+                          providers.map((provider) => (
+                            <SelectItem key={provider.id} value={provider.id}>
+                              {provider.name} ({provider.type})
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    {providers.length === 0 && (
+                      <p className="text-xs text-yellow-600">
+                        No AI providers configured. Configure providers in Integrations → AI Providers.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Embedding Model Selection */}
+                  <div className="space-y-2">
+                    <Label htmlFor="embedding-model" className="text-sm font-medium">
+                      Embedding Model <span className="text-red-500">*</span>
+                    </Label>
+                    {newField.provider_id ? (
+                      <Select
+                        value={newField.model || ""}
+                        onValueChange={(value) => {
+                          const selectedModel = availableModels.find(m => m.id === value);
+                          setNewField({ 
+                            ...newField, 
+                            model: value,
+                            dimensions: selectedModel?.dimensions || newField.dimensions
+                          });
+                        }}
+                        disabled={isLoadingModels}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={
+                            isLoadingModels 
+                              ? "Loading models..." 
+                              : availableModels.length > 0 
+                                ? "Select an embedding model" 
+                                : "No models available"
+                          }>
+                            {newField.model && (() => {
+                              const selectedModel = availableModels.find(m => m.id === newField.model);
+                              if (!selectedModel) return newField.model;
+                              return (
+                                <div className="flex items-center justify-between w-full gap-4">
+                                  <div className="flex-1 min-w-0">
+                                    <span className="font-medium text-sm truncate">{selectedModel.name}</span>
+                                    {selectedModel.dimensions && (
+                                      <span className="ml-2 text-xs text-muted-foreground font-mono">
+                                        ({selectedModel.dimensions}d)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </SelectValue>
+                          {isLoadingModels && (
+                            <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                          )}
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableModels.length === 0 ? (
+                            <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                              {isLoadingModels ? "Loading models..." : "No models available"}
+                            </div>
+                          ) : (
+                            availableModels.map((model) => (
+                              <SelectItem key={model.id} value={model.id}>
+                                <div className="space-y-1">
+                                  <div className="font-medium text-sm">
+                                    {model.name}
+                                    {model.dimensions && (
+                                      <span className="ml-2 text-xs text-muted-foreground font-mono">
+                                        ({model.dimensions}d)
+                                      </span>
+                                    )}
+                                  </div>
+                                  {model.description && (
+                                    <div className="text-xs text-muted-foreground">
+                                      {model.description}
+                                    </div>
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        id="embedding-model"
+                        value={newField.model || ""}
+                        onChange={(e) => {
+                          const modelValue = e.target.value;
+                          // Update dimensions based on known models
+                          let dimensions = newField.dimensions;
+                          if (modelValue.includes('ada-002')) dimensions = 1536;
+                          else if (modelValue.includes('embed-english')) dimensions = 1024;
+                          else if (modelValue.includes('MiniLM')) dimensions = 384;
+                          else if (modelValue.includes('nomic-embed')) dimensions = 768;
+                          
+                          setNewField({ ...newField, model: modelValue, dimensions });
+                        }}
+                        placeholder="e.g., text-embedding-ada-002"
+                        className="w-full"
+                        disabled
+                      />
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {newField.provider_id 
+                        ? "Select from available models provided by your chosen AI provider" 
+                        : "Please select an AI provider first to see available models"}
+                    </p>
+                  </div>
+
+                  {/* Source Fields Selection */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">
+                      Source Fields for Embedding <span className="text-red-500">*</span>
+                    </Label>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Select which document fields to use for generating embeddings
+                    </p>
+                    <div className="space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                      {collectionFields.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No fields available</p>
+                      ) : (
+                        collectionFields.map((field) => (
+                          <div key={field} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`field-${field}`}
+                              checked={newField.source_fields?.includes(field)}
+                              onCheckedChange={(checked) => {
+                                const currentFields = newField.source_fields || [];
+                                if (checked) {
+                                  setNewField({ 
+                                    ...newField, 
+                                    source_fields: [...currentFields, field]
+                                  });
+                                } else {
+                                  setNewField({ 
+                                    ...newField, 
+                                    source_fields: currentFields.filter(f => f !== field)
+                                  });
+                                }
+                              }}
+                            />
+                            <Label 
+                              htmlFor={`field-${field}`}
+                              className="text-sm font-normal cursor-pointer"
+                            >
+                              {field}
+                            </Label>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Auto-Embed Option */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="auto-embed" className="text-sm font-medium">
+                        Auto-Generate on Document Changes
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Automatically update embeddings when documents are created or modified
+                      </p>
+                    </div>
+                    <Switch
+                      id="auto-embed"
+                      checked={newField.auto_embed}
+                      onCheckedChange={(checked) => setNewField({ ...newField, auto_embed: checked })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Distance Metric Section */}
@@ -447,7 +763,13 @@ export function VectorFieldsManager({ collectionName, onFieldsUpdate }: VectorFi
                   metric: "cosine",
                   index_type: "ivfflat",
                   list_size: 100,
+                  enable_auto_rag: false,
+                  provider_id: "",
+                  source_fields: [],
+                  auto_embed: true,
+                  model: "",
                 });
+                setAvailableModels([]); // Clear models when dialog closes
               }}
             >
               Cancel

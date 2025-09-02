@@ -122,6 +122,16 @@ export const dataApi = {
     const response = await api.delete(`/data/${collection}/${id}`);
     return response.data;
   },
+  // Vector search
+  vectorSearch: async (collection: string, params: any) => {
+    const response = await api.post(`/data/${collection}/search`, params);
+    return response.data;
+  },
+  // Hybrid search (text + vector)
+  hybridSearch: async (collection: string, params: any) => {
+    const response = await api.post(`/data/${collection}/hybrid-search`, params);
+    return response.data;
+  },
 };
 
 // Documents API (alias for dataApi with better naming)
@@ -181,6 +191,34 @@ export const usersApi = {
   },
   delete: async (id: string) => {
     const response = await api.delete(`/admin/users/${id}`);
+    return response.data;
+  },
+};
+
+// AI Providers APIs
+export const aiProvidersApi = {
+  list: async () => {
+    const response = await api.get('/ai/providers');
+    return response.data;
+  },
+  create: async (data: any) => {
+    const response = await api.post('/ai/providers', data);
+    return response.data;
+  },
+  get: async (id: string) => {
+    const response = await api.get(`/ai/providers/${id}`);
+    return response.data;
+  },
+  update: async (id: string, data: any) => {
+    const response = await api.put(`/ai/providers/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: string) => {
+    const response = await api.delete(`/ai/providers/${id}`);
+    return response.data;
+  },
+  getModels: async (id: string) => {
+    const response = await api.get(`/ai/providers/${id}/models`);
     return response.data;
   },
 };

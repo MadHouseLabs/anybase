@@ -11,13 +11,18 @@ import (
 type VectorField struct {
 	Name        string  `bson:"name" json:"name" validate:"required,min=1,max=100"`
 	Dimensions  int     `bson:"dimensions" json:"dimensions" validate:"required,min=1,max=65536"`
-	Model       string  `bson:"model,omitempty" json:"model,omitempty"`           // e.g., "text-embedding-ada-002"
-	SourceField string  `bson:"source_field,omitempty" json:"source_field,omitempty"` // Field to generate embeddings from
 	IndexType   string  `bson:"index_type,omitempty" json:"index_type,omitempty"`   // ivfflat, hnsw
 	Metric      string  `bson:"metric,omitempty" json:"metric,omitempty"`           // cosine, l2, inner_product
 	ListSize    int     `bson:"list_size,omitempty" json:"list_size,omitempty"`     // For ivfflat index
 	M           int     `bson:"m,omitempty" json:"m,omitempty"`                     // For hnsw index
 	EfConstruct int     `bson:"ef_construct,omitempty" json:"ef_construct,omitempty"` // For hnsw index
+	
+	// Auto-RAG configuration
+	EnableAutoRAG  bool     `bson:"enable_auto_rag,omitempty" json:"enable_auto_rag,omitempty"`
+	ProviderID     string   `bson:"provider_id,omitempty" json:"provider_id,omitempty"`
+	EmbeddingModel string   `bson:"embedding_model,omitempty" json:"embedding_model,omitempty"` // Model to use for embeddings
+	SourceFields   []string `bson:"source_fields,omitempty" json:"source_fields,omitempty"`     // Multiple fields for content
+	AutoEmbed      bool     `bson:"auto_embed,omitempty" json:"auto_embed,omitempty"`           // Auto-generate on CRUD
 }
 
 // Collection represents a data collection in the system
